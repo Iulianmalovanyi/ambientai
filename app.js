@@ -922,9 +922,9 @@ if (!IS_MIC_MODE) {
     const probe = await probeOllama();
     if (probe.ok) {
       const count = initLocalLlm({ factors: ALL_FACTORS });
-      console.log(`[LLM] connected to Ollama (${probe.model}) · ${count} factors enrolled`);
+      console.log(`[LLM] connected to Ollama (${probe.model}, ${probe.source}) · ${count} factors enrolled`);
       if (!state.listening) {
-        sttStatus.textContent = `Local LLM connected (${probe.model}) · ${count} factors enrolled · Click Start.`;
+        sttStatus.textContent = `LLM connected (${probe.model}, ${probe.source}) · ${count} factors enrolled · Click Start.`;
       }
     } else {
       console.warn('[LLM] not connected:', probe.error);

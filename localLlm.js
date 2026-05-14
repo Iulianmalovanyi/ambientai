@@ -14,9 +14,23 @@
 // factor records.
 // =====================================================================
 
-const OLLAMA_URL = 'http://localhost:11434/v1/chat/completions';
+// LLM endpoint — defaults to the shared ngrok-tunnelled Ollama running on
+// Iulian's Mac, so team members don't have to install Ollama themselves.
+// If a user wants to use their own local Ollama (faster, private), they can
+// pass ?llm=local in the URL.
+const SHARED_LLM_BASE = 'https://verbally-drainer-neon.ngrok-free.dev';
+const LOCAL_LLM_BASE = 'http://localhost:11434';
+const USE_LOCAL_LLM = new URL(window.location.href).searchParams.get('llm') === 'local';
+const OLLAMA_BASE = USE_LOCAL_LLM ? LOCAL_LLM_BASE : SHARED_LLM_BASE;
+const OLLAMA_URL = `${OLLAMA_BASE}/v1/chat/completions`;
+const OLLAMA_TAGS_URL = `${OLLAMA_BASE}/api/tags`;
 const MODEL_NAME = 'qwen2.5:7b';
 const REQUEST_TIMEOUT_MS = 20000;
+
+// Extra headers — ngrok free tier shows a browser-warning page unless this
+// header is set. Skipping the warning means our requests get straight
+// through to Ollama.
+const EXTRA_HEADERS = USE_LOCAL_LLM ? {} : { 'ngrok-skip-browser-warning': 'true' };
 
 let factorList = []; // [{ name, hint }] — passed to the model in the prompt
 let ready = false;
@@ -30,17 +44,16 @@ let lastError = null;
  */
 export async function probeOllama() {
   try {
-    const r = await fetch('http://localhost:11434/api/tags', { method: 'GET' });
+    const r = await fetch(OLLAMA_TAGS_URL, { method: 'GET', headers: EXTRA_HEADERS });
     if (!r.ok) return { ok: false, error: `Ollama responded with HTTP ${r.status}` };
     const data = await r.json();
     const hasModel = data.models?.some(m => m.name?.startsWith(MODEL_NAME));
     if (!hasModel) {
-      return { ok: false, error: `Model ${MODEL_NAME} not pulled. Run: ollama pull ${MODEL_NAME}` };
+      return { ok: false, error: `Model ${MODEL_NAME} not pulled on the server.` };
     }
-    return { ok: true, model: MODEL_NAME };
+    return { ok: true, model: MODEL_NAME, source: USE_LOCAL_LLM ? 'local' : 'shared (ngrok)' };
   } catch (err) {
-    // CORS errors look the same as network errors from the browser side
-    return { ok: false, error: `Cannot reach Ollama: ${err.message}. Is "ollama serve" running with OLLAMA_ORIGINS="*"?` };
+    return { ok: false, error: `Cannot reach Ollama at ${OLLAMA_BASE}: ${err.message}` };
   }
 }
 
@@ -155,7 +168,7 @@ export async function localLlmDetect(utterance, contextUtterances = []) {
   try {
     const r = await fetch(OLLAMA_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...EXTRA_HEADERS },
       signal: controller.signal,
       body: JSON.stringify({
         model: MODEL_NAME,
