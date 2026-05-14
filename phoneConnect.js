@@ -18,16 +18,35 @@
 // =====================================================================
 
 const PEERJS_CONFIG = {
-  // Use the free public PeerJS cloud broker. ICE servers are the public
-  // STUN servers; without TURN, cross-NAT connections may fail (works for
-  // most home Wi-Fi cases).
+  // Use the free public PeerJS cloud broker for signalling. ICE servers
+  // are STUN + free public TURN relays (Metered OpenRelay) so cross-network
+  // connections (e.g. phone on cellular, laptop on Wi-Fi) can still
+  // negotiate. Without TURN, only same-LAN typically works.
   config: {
     iceServers: [
       { urls: 'stun:stun.l.google.com:19302' },
-      { urls: 'stun:global.stun.twilio.com:3478' }
+      { urls: 'stun:stun1.l.google.com:19302' },
+      { urls: 'stun:global.stun.twilio.com:3478' },
+      {
+        urls: [
+          'turn:openrelay.metered.ca:80',
+          'turn:openrelay.metered.ca:443',
+          'turn:openrelay.metered.ca:443?transport=tcp'
+        ],
+        username: 'openrelayproject',
+        credential: 'openrelayproject'
+      },
+      {
+        urls: [
+          'turn:relay1.expressturn.com:3478',
+          'turn:relay1.expressturn.com:3478?transport=tcp'
+        ],
+        username: 'efJBIBF6IRZE9YGJLW',
+        credential: 'tcXVQHCqYr08Yz4n'
+      }
     ]
   },
-  debug: 1
+  debug: 2
 };
 
 // -------------------- DESKTOP / LAPTOP SIDE --------------------
