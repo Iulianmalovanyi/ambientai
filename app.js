@@ -37,11 +37,13 @@ const state = {
   transcript: '',             // committed transcript
   interim: '',                // interim transcript
   detected: new Map(),        // canonicalName -> { factor, utterance, ts }
+  recentUtterances: [],       // sliding window of last N final deltas — passed to LLM as context
   transcriptVisible: false,
   fallbackMode: false,        // true if Web Speech API not available
   notifVisible: false,
   selectedFactorIds: new Set() // for RA modal
 };
+const CONTEXT_WINDOW_SIZE = 3;
 
 // =====================================================================
 // DOM refs
@@ -346,8 +348,16 @@ function sentenceIsNegated(sentence) {
 
 async function runLocalLlm(deltaText, deltaStart) {
   if (!isLocalLlmReady()) return;
+  // Snapshot the context window BEFORE we mutate it. The current delta is
+  // appended after the call so it doesn't appear as both context and target.
+  const context = state.recentUtterances.slice();
+  // Append current delta so future calls see it as context.
+  state.recentUtterances.push(deltaText);
+  if (state.recentUtterances.length > CONTEXT_WINDOW_SIZE) {
+    state.recentUtterances.shift();
+  }
   try {
-    const matches = await localLlmDetect(deltaText);
+    const matches = await localLlmDetect(deltaText, context);
     if (!matches.length) return;
     const negated = sentenceIsNegated(deltaText);
     const news = [];
@@ -734,6 +744,7 @@ function resetAll() {
   state.transcript = '';
   state.interim = '';
   state.detected.clear();
+  state.recentUtterances = [];
   state.hasEverStarted = state.listening;  // hide chip after reset if not currently listening
   tbDot.classList.remove('is-on');
   tbBadge.hidden = true;

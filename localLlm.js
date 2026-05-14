@@ -15,8 +15,8 @@
 // =====================================================================
 
 const OLLAMA_URL = 'http://localhost:11434/v1/chat/completions';
-const MODEL_NAME = 'qwen2.5:3b';
-const REQUEST_TIMEOUT_MS = 12000;
+const MODEL_NAME = 'qwen2.5:7b';
+const REQUEST_TIMEOUT_MS = 20000;
 
 let factorList = []; // [{ name, hint }] — passed to the model in the prompt
 let ready = false;
@@ -63,38 +63,75 @@ export function isLocalLlmReady() { return ready; }
 export function getLastError() { return lastError; }
 
 /**
- * Build the prompt for the model. We give it a list of factor names and
- * an utterance, and ask for a strict JSON response.
+ * Build the prompt for the model. We give it a list of factor names, a
+ * short sliding window of recent utterances (for context — e.g. the
+ * clinician's question that the current utterance is answering), and the
+ * current utterance to classify. Few-shot examples are included to
+ * teach the model the expected output shape and the tricky cases
+ * (negations, doctor questions, paraphrases, family relatives).
  *
- * To keep the prompt manageable we pass canonical factor names only
- * (no aliases — the model already knows the synonyms).
+ * To keep the prompt manageable we pass canonical factor names only —
+ * the model already knows medical synonyms.
  */
-function buildPrompt(utterance) {
+function buildPrompt(utterance, contextUtterances = []) {
   const names = factorList.map(f => `- ${f.name}`).join('\n');
+  const contextBlock = contextUtterances.length
+    ? `Recent prior utterances (context only — do NOT detect factors from these, only from the current utterance):\n${contextUtterances.map(u => `  • "${u}"`).join('\n')}\n\n`
+    : '';
   return [
     {
       role: 'system',
-      content: `You are a clinical assistant that listens to short utterances from a primary care consultation and detects which cancer risk factors from a fixed list the patient is describing.
+      content: `You are a clinical assistant that listens to short utterances from a primary care consultation and detects which cancer risk factors from a fixed list the speaker is describing.
 
 You will receive:
-1. A canonical list of risk factors (some symptoms, signs, family history items, or lifestyle factors).
-2. A single utterance from the patient or clinician.
+1. A canonical list of risk factors (symptoms, signs, family history items, or lifestyle factors).
+2. Optionally, up to 3 recent prior utterances for context (use them to resolve pronouns / references, but do NOT output detections that exist only in the prior context).
+3. A single current utterance to classify.
 
 Your task:
-- Decide which factors from the list the utterance describes.
-- Treat the utterance generously: medical jargon, lay terms, partial descriptions, hedged language, and mentions of close relatives all count.
+- Decide which factors from the list the CURRENT utterance describes.
+- Treat the utterance generously: medical jargon, lay terms, partial descriptions, hedged language, and mentions of close relatives (mum, dad, sister, brother, uncle, aunt, grandparent, etc.) all count.
 - IGNORE negations: if the speaker is denying / never had / explicitly ruled out a factor, do not include it.
+- IGNORE clinician questions: if the utterance is the doctor asking about a symptom (e.g. "Have you had a cough?", "Any blood in your urine?"), do not detect anything — only the patient's affirmative description counts.
 - If nothing in the list applies, return an empty array.
-- Output ONLY valid JSON in this exact shape, no prose, no markdown:
+- Output ONLY valid JSON in this exact shape, no prose, no markdown, no code fences:
   {"matches":[{"name":"<exact factor name from the list>","quote":"<short verbatim phrase from utterance>","confidence":0.0-1.0}]}
-- "name" MUST be one of the listed factor names, character for character.`
+- "name" MUST be one of the listed factor names, character for character.
+
+Few-shot examples:
+
+Example 1:
+Current utterance: "I've had this annoying little cough that's been hanging around for weeks now"
+Output: {"matches":[{"name":"Cough","quote":"annoying little cough","confidence":0.9}]}
+
+Example 2:
+Current utterance: "I don't smoke and I never have"
+Output: {"matches":[]}
+
+Example 3 (clinician question — must return no matches):
+Current utterance: "Have you noticed any blood in your urine recently?"
+Output: {"matches":[]}
+
+Example 4 (paraphrase — patient doesn't say "haematuria"):
+Current utterance: "Yesterday morning my urine looked pinkish, almost like blood"
+Output: {"matches":[{"name":"Haematuria - visible and recurrent or persistent despite UTI treatment","quote":"urine looked pinkish, almost like blood","confidence":0.85}]}
+
+Example 5 (family history — relative is uncle):
+Current utterance: "My uncle had bowel cancer when he was in his sixties"
+Output: {"matches":[{"name":"Family history of colorectal cancer","quote":"uncle had bowel cancer","confidence":0.9}]}
+
+Example 6 (context resolves a pronoun):
+Recent prior utterances:
+  • "Have you been losing weight lately?"
+Current utterance: "Yes, about a stone over the last three months without trying"
+Output: {"matches":[{"name":"Weight loss","quote":"about a stone over the last three months","confidence":0.9}]}`
     },
     {
       role: 'user',
       content: `Risk factors:
 ${names}
 
-Utterance:
+${contextBlock}Current utterance:
 "${utterance}"
 
 Respond with JSON only.`
@@ -103,10 +140,13 @@ Respond with JSON only.`
 }
 
 /**
- * Run detection on a single utterance. Returns an array of
- * { name, quote, confidence } objects. Empty array on failure.
+ * Run detection on a single utterance.
+ * @param {string} utterance — the current utterance to classify
+ * @param {string[]} contextUtterances — up to 3 prior utterances for context
+ *        (e.g. the clinician's question the patient is responding to)
+ * @returns array of { name, quote, confidence }. Empty array on failure.
  */
-export async function localLlmDetect(utterance) {
+export async function localLlmDetect(utterance, contextUtterances = []) {
   if (!ready) return [];
   const trimmed = (utterance || '').trim();
   if (!trimmed) return [];
@@ -119,7 +159,7 @@ export async function localLlmDetect(utterance) {
       signal: controller.signal,
       body: JSON.stringify({
         model: MODEL_NAME,
-        messages: buildPrompt(trimmed),
+        messages: buildPrompt(trimmed, contextUtterances.slice(-3)),
         temperature: 0,        // deterministic for clinical use
         response_format: { type: 'json_object' },
         stream: false
