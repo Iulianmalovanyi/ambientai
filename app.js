@@ -523,17 +523,35 @@ function setListening(isOn) {
 
 function renderTranscript() {
   if (!state.transcriptVisible) return;
+  // English (translated) pane — always present, used for detection display
   const final = state.transcript;
   if (!final && !state.interim) {
     transcriptBody.innerHTML = '<span class="empty">Transcript will appear here as you speak…</span>';
-    return;
+  } else {
+    const highlighted = highlight(final);
+    // For non-English source, interim text is in original language — only show in the original pane
+    const interimSuffix = (state.lang === 'en-GB' && state.interim)
+      ? `<span class="interim"> ${escapeHtml(state.interim)}</span>`
+      : '';
+    transcriptBody.innerHTML = highlighted + interimSuffix;
+    transcriptBody.scrollTop = transcriptBody.scrollHeight;
   }
-  // highlight matched phrases in the final transcript
-  const highlighted = highlight(final);
-  transcriptBody.innerHTML =
-    highlighted +
-    (state.interim ? `<span class="interim"> ${escapeHtml(state.interim)}</span>` : '');
-  transcriptBody.scrollTop = transcriptBody.scrollHeight;
+  // Original-language pane — only used when non-English is selected
+  const originalBody = document.getElementById('transcriptBodyOriginal');
+  if (originalBody) {
+    if (state.lang === 'en-GB') {
+      originalBody.innerHTML = '';
+    } else {
+      const orig = state.transcriptOriginal;
+      if (!orig && !state.interim) {
+        originalBody.innerHTML = '<span class="empty">Original transcript will appear here…</span>';
+      } else {
+        originalBody.innerHTML = escapeHtml(orig || '') +
+          (state.interim ? `<span class="interim"> ${escapeHtml(state.interim)}</span>` : '');
+        originalBody.scrollTop = originalBody.scrollHeight;
+      }
+    }
+  }
 }
 
 function highlight(text) {
@@ -777,14 +795,24 @@ function resetAll() {
 // =====================================================================
 // Wire up event listeners
 // =====================================================================
-// Language picker — sets state.lang and updates the SpeechRecognition language.
-// Changing language mid-session forces a restart of the recogniser so the new
-// language code takes effect.
+// Language picker — sets state.lang, updates the recogniser, and toggles
+// the original-language transcript pane.
 const langPicker = document.getElementById('langPicker');
+function applyLangUi() {
+  const nonEnglish = state.lang !== 'en-GB';
+  const paneOriginal = document.getElementById('paneOriginal');
+  const paneOriginalLangName = document.getElementById('paneOriginalLangName');
+  const paneEnglishLabel = document.getElementById('paneEnglishLabel');
+  if (paneOriginal) paneOriginal.hidden = !nonEnglish;
+  if (paneEnglishLabel) paneEnglishLabel.hidden = !nonEnglish;
+  if (paneOriginalLangName) paneOriginalLangName.textContent = langName(state.lang);
+}
 if (langPicker) {
   langPicker.addEventListener('change', () => {
     state.lang = langPicker.value;
     showToast(`Language: ${langName(state.lang)}`);
+    applyLangUi();
+    renderTranscript();
     if (state.recognition) {
       const wasListening = state.listening;
       try { state.recognition.stop(); } catch (_) {}

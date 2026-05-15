@@ -185,7 +185,16 @@
       <span class="muted">PoC only — production feature will not display this</span>
       <button class="icon-btn" id="transcriptClose" aria-label="Hide transcript"><svg class="ic ic--sm"><use href="#ic-close"/></svg></button>
     </div>
-    <div class="transcript-body" id="transcriptBody"></div>
+    <!-- Original-language pane (shown only when patient language is not English) -->
+    <div class="transcript-pane transcript-pane--original" id="paneOriginal" hidden>
+      <div class="transcript-pane-label">Original — <span id="paneOriginalLangName">Ukrainian</span></div>
+      <div class="transcript-body" id="transcriptBodyOriginal"></div>
+    </div>
+    <!-- English pane: always visible. Labelled "English (translated)" when source is non-English -->
+    <div class="transcript-pane transcript-pane--english">
+      <div class="transcript-pane-label" id="paneEnglishLabel" hidden>English — translated</div>
+      <div class="transcript-body" id="transcriptBody"></div>
+    </div>
     <!-- Mock fallback input -->
     <div class="transcript-fallback" id="transcriptFallback" hidden>
       <label for="mockInput"><strong>Mock input</strong> (Web Speech API unavailable — type to simulate)</label>
