@@ -1,0 +1,572 @@
+/* =====================================================================
+   AmbiantAI PoC — UI exploration overlay
+   Adds: view-switcher chip, Figma-accurate replica toolbar (Panel 2.0 +
+   Menu 3.1 + Ask 4-point sparkle), Ambient AI surface (attached + separate).
+   Removable by deleting the <link> + <script> for prototype.* in index.html.
+
+   Always active when loaded — the original toolbar (#toolbarExpanded) and
+   its listen chip are hidden, replaced by the Figma replica. The two body
+   classes (view-attached / view-separate) toggle the Ambient AI surface
+   placement only.
+
+   Figma tokens used (Toolbar — file OSG1s5qerpw8RyhdbrQmkY):
+     Brand button bg        : #1671BE
+     Button hover bg        : #0E4777
+     Wrapper / divider      : #034E8E
+     Focus underline        : #F9CB40 (4px solid bottom border)
+     Per-button shadow      : inset -1px 0 0 #034E8E, inset 0 -2px 0 rgba(0,0,0,.1)
+     Floating drop shadow   : 0 6.4px 14.4px rgba(0,0,0,.13), 0 1.2px 3.6px rgba(0,0,0,.1)
+     Corner radius          : 8px
+     Button size            : 44×44 (Menu 52×44)
+     Icon container         : 32×32 centred
+   ===================================================================== */
+
+/* --------- Hide the original toolbar entirely while the prototype runs --- */
+#toolbarExpanded { display: none !important; }
+#listenChip { display: none !important; }
+
+/* =====================================================================
+   Mobile mic page — light alignment with the desktop prototype.
+   Only iconography + type + palette tweaks. Layout is unchanged.
+   ===================================================================== */
+body.mobile-mic-mode {
+  background: #0A1A33;
+}
+.mobile-mic {
+  background: linear-gradient(180deg, #0A1A33 0%, #15305C 100%);
+  font-family: "Lato", var(--font);
+}
+.mm-header {
+  font-weight: 800;
+  font-size: 16px;
+  letter-spacing: 0;
+}
+.mm-logo-ic { width: 28px; height: 28px; }
+.mm-status { font-size: 14px; font-weight: 500; }
+.mm-status .dot--listening,
+.mm-status .dot--connected { background: #5CA246; }
+.mm-status .dot--listening { animation: pulse-sm 1.2s ease-out infinite; }
+.mm-status .dot--error { background: #E42045; }
+
+/* Big mic button — brand blue idle, brand red while listening */
+.mm-mic-btn {
+  background: #1671BE;
+  box-shadow: 0 20px 50px rgba(22, 113, 190, .35);
+  font-weight: 800;
+}
+.mm-mic-btn:disabled { background: #3a4a66; box-shadow: none; }
+.mm-mic-btn.is-listening {
+  background: #E42045;
+  box-shadow: 0 20px 50px rgba(228, 32, 69, .42);
+}
+.mm-mic-ic { width: 52px; height: 52px; }
+.mm-transcript {
+  font-size: 14px;
+  line-height: 1.5;
+  font-weight: 500;
+}
+.mm-footnote { font-size: 12px; font-weight: 500; }
+
+/* --------- Calm mesh-gradient backdrop ---------
+   Replaces the muddy default. Four soft radial anchors over a neutral
+   cool base — pale brand-blue, lavender, sage, warm cream — keeping
+   the toolbar's #1671BE feeling like the focal element. */
+.desktop-bg {
+  background:
+    radial-gradient(ellipse 70% 70% at 15% 20%, #c8def0 0%, transparent 55%),
+    radial-gradient(ellipse 60% 60% at 85% 25%, #e3dcef 0%, transparent 55%),
+    radial-gradient(ellipse 65% 70% at 80% 80%, #d8e8d4 0%, transparent 55%),
+    radial-gradient(ellipse 70% 70% at 20% 80%, #f4ebe0 0%, transparent 55%),
+    linear-gradient(135deg, #eaeef4 0%, #e5eaf0 100%) !important;
+}
+
+/* --------- View switcher chip (always visible) --------- */
+.proto-chip {
+  position: fixed;
+  top: 28px;
+  right: 36px;
+  z-index: 50;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  background: #fff;
+  border-radius: 999px;
+  box-shadow: var(--shadow-sm);
+  font-family: var(--font);
+  font-size: 12px;
+  font-weight: 600;
+}
+.proto-chip__label {
+  padding: 0 10px 0 8px;
+  color: var(--grey-500);
+  font-size: 11px;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+.proto-chip__btn {
+  border: 0;
+  background: transparent;
+  color: var(--grey-700);
+  padding: 6px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+  font: inherit;
+  transition: background .15s ease, color .15s ease;
+}
+.proto-chip__btn:hover { background: var(--grey-100); }
+.proto-chip__btn.is-active {
+  background: #1671BE;
+  color: #fff;
+}
+
+/* =====================================================================
+   Replica toolbar — Figma Panel 2.0 + Ask + Menu (New) 3.1
+   ===================================================================== */
+.proto-toolbar {
+  /* Floating drop shadow exactly as Figma "Drop Shadow/Floating" */
+  filter:
+    drop-shadow(0 6.4px 14.4px rgba(0, 0, 0, .13))
+    drop-shadow(0 1.2px 3.6px rgba(0, 0, 0, .1));
+  font-family: var(--font);
+}
+
+/* The outer wrapper — dark blue background that bleeds through the inset
+   dividers between buttons. Without this you'd see the body background
+   showing through the 1px right-edge shadows. */
+.proto-tb-wrap {
+  display: inline-flex;
+  align-items: stretch;
+  background: #034E8E;
+  border-radius: 8px;
+  overflow: hidden;
+  user-select: none;
+  height: 44px;
+}
+
+.proto-tb-primary {
+  display: inline-flex;
+  align-items: stretch;
+}
+
+.proto-tb-btn {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  background: #1671BE;
+  border: 0;
+  padding: 0;
+  color: #FFFFFF;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background .12s ease;
+  /* Per-button inset shadows from Figma:
+     - 1px right divider in #034E8E
+     - 2px bottom inset shading in 10% black for the subtle 3D feel */
+  box-shadow:
+    inset -1px 0 0 #034E8E,
+    inset 0 -2px 0 rgba(0, 0, 0, .1);
+}
+
+.proto-tb-btn:hover { background: #0E4777; }
+
+/* Pressed state — 1px give (icon nudges down by 1px) + yellow underline.
+   Lives only while the mouse/key is held; returns to rest on release.
+   This is the "pushed" affordance, NOT a sticky open state. */
+.proto-tb-btn:active {
+  background: #0a3a64;
+  box-shadow:
+    inset -1px 0 0 #034E8E,
+    inset 0 -4px 0 #F9CB40;
+}
+.proto-tb-btn:active .proto-tb-icon { transform: translateY(1px); }
+
+/* Keyboard focus — same yellow underline, no depression. Icon nudges 2px
+   down to stay visually centred above the 4px underline. */
+.proto-tb-btn:focus-visible {
+  outline: none;
+  box-shadow:
+    inset -1px 0 0 #034E8E,
+    inset 0 -4px 0 #F9CB40;
+}
+.proto-tb-btn:focus-visible .proto-tb-icon { transform: translateY(2px); }
+
+/* When both apply (keyboard activate), :active wins via 1px translation */
+.proto-tb-btn:focus-visible:active .proto-tb-icon { transform: translateY(1px); }
+
+.proto-tb-btn[disabled] { opacity: .4; cursor: default; }
+.proto-tb-btn[disabled]:hover { background: #1671BE; }
+
+/* Icon container — 32×32 centred, contains the SVG. The SVG itself
+   renders at intrinsic size from its viewBox; we cap it at 24×24 visible
+   to match the Figma 12.5% inset (i.e. 32×0.75 = 24px of artwork). */
+.proto-tb-icon {
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform .12s ease;
+  color: inherit;
+}
+.proto-tb-icon > svg, .proto-tb-icon use { width: 100%; height: 100%; }
+/* Force inner svg sizing — the symbol's viewBox handles aspect ratio */
+.proto-tb-icon {
+  /* Constrain the rendered icon to ~24px to match Figma 12.5% inset */
+  padding: 4px;
+}
+
+/* Menu button — 52×44, no right divider (it's the last item) */
+.proto-tb-menu {
+  width: 52px;
+  box-shadow: inset 0 -2px 0 rgba(0, 0, 0, .1);
+}
+.proto-tb-menu:active,
+.proto-tb-menu:focus-visible { box-shadow: inset 0 -4px 0 #F9CB40; }
+
+/* The CTS butterfly mark is taller than wide — scale to roughly match
+   the other icons visually (~22×22 inside the 32px container). */
+.proto-tb-icon--menu { padding: 5px; }
+
+/* Drag handle — 16×24, 8 dots in a 2×4 grid.
+   Sits on the wrapper colour (#034E8E) so it reads as a distinct grip zone
+   rather than another button. No hover/active bg shift — just the cursor. */
+.proto-tb-handle {
+  width: 16px;
+  display: grid;
+  grid-template-columns: repeat(2, 2px);
+  grid-template-rows: repeat(4, 2px);
+  align-content: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 0 5px;
+  cursor: grab;
+  background: #034E8E;
+  /* Same inset bottom shading as buttons so the ridge line carries across */
+  box-shadow: inset 0 -2px 0 rgba(0, 0, 0, .1);
+}
+.proto-tb-handle:active { cursor: grabbing; }
+.proto-tb-handle span {
+  width: 2px;
+  height: 2px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, .75);
+}
+
+/* =====================================================================
+   Ambient AI surface (shared between attached + separate variants)
+   Direct port of Figma "Llstening" / "Idle" frames at node 13297:25037.
+
+   Figma tokens applied:
+     Surface bg            : #B1B4B6 (Palette/Grey)
+     Inner pill bg         : #F3F2F1 (Button/Secondary)
+     Text                  : #0B0C0C (Palette/Black)
+     Record dot            : #E42045 (Context/Error)
+     Voice bars            : #5CA246 (Context/Confirm)
+     Outer radius          : 12px
+     Inner radius          : 8px
+     Outer padding         : 4px (left/top/bottom, 0 right — handle is flush)
+     Row gap               : 4px
+   ===================================================================== */
+.proto-ai {
+  display: none;
+  font-family: var(--font);
+  background: #B1B4B6;
+  padding: 4px 0 4px 4px;
+  user-select: none;
+  color: #0B0C0C;
+}
+.proto-ai__container {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.proto-ai__row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 36px;
+}
+.proto-ai__row--device { height: 20px; }
+
+/* Common icon sizing inside the AI surface — the icons inherit color from
+   the parent button, allowing easy state changes via CSS. */
+.proto-ai__ic {
+  display: inline-flex;
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+}
+.proto-ai__ic > svg, .proto-ai__ic use { width: 100%; height: 100%; }
+/* SVG itself fills the icon box */
+.proto-ai__ic { line-height: 0; }
+.proto-ai__pill > svg.proto-ai__ic { width: 18px; height: 18px; }
+.proto-ai__pill .proto-ai__ic > svg { width: 100%; height: 100%; }
+
+/* --- White pill base (Pause, Primary, Phone all share this) --- */
+.proto-ai__pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 12px;
+  background: #F3F2F1;
+  border: 0;
+  border-radius: 8px;
+  color: #0B0C0C;
+  cursor: pointer;
+  font: 800 14px / 16px "Lato", var(--font);
+  letter-spacing: 0;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .06);
+  transition: background .12s ease, transform .08s ease;
+}
+.proto-ai__pill:hover { background: #ECEAE8; }
+.proto-ai__pill:active { transform: translateY(1px); }
+.proto-ai__pill:focus-visible {
+  outline: 2px solid #1671BE;
+  outline-offset: 2px;
+}
+
+/* --- Pause button (secondary, square, 36×36, visible only while listening) -- */
+.proto-ai__pause {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  flex: 0 0 auto;
+  display: none;
+}
+body.proto-listening .proto-ai__pause { display: inline-flex; }
+
+/* --- Primary pill (Start / Stop / Resume) --- */
+.proto-ai__primary {
+  flex: 1 1 auto;
+  min-width: 0;
+  /* Slightly more breathing room since this is the wide CTA */
+  padding: 0 12px 0 10px;
+  justify-content: flex-start;
+  gap: 8px;
+}
+.proto-ai__primary-label {
+  flex: 0 0 auto;
+}
+/* Subtle elapsed-time slot — quiet text after a middle dot separator */
+.proto-ai__primary-meta {
+  margin-left: 2px;
+  padding-left: 10px;
+  color: rgba(11, 12, 12, .55);
+  font-weight: 500;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+  position: relative;
+}
+.proto-ai__primary-meta::before {
+  content: "·";
+  position: absolute;
+  left: 2px;
+  color: rgba(11, 12, 12, .35);
+}
+.proto-ai__primary-meta[hidden] { display: none; }
+
+/* --- Record indicator — single visual element, five states ---
+   idle      : outlined ring only
+   starting  : outlined ring with a quick 300ms pulse-glow halo
+   listening : outlined ring with filled square inside, breathing 1.5s
+   paused    : outlined ring with filled square inside, static
+   stopping  : outlined ring with filled square inside fading away (300ms) */
+.proto-ai__primary .proto-ai__rec {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid #E42045;
+  background: transparent;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  transition: opacity .15s ease;
+}
+.proto-ai__primary .proto-ai__rec::after {
+  content: "";
+  width: 6px;
+  height: 6px;
+  background: #E42045;
+  border-radius: 1px;
+  transform: scale(0);
+  transition: transform .2s ease, opacity .3s ease;
+  opacity: 1;
+}
+body.proto-listening .proto-ai__primary .proto-ai__rec::after,
+body.proto-paused    .proto-ai__primary .proto-ai__rec::after { transform: scale(1); }
+body.proto-stopping  .proto-ai__primary .proto-ai__rec::after {
+  transform: scale(1);
+  opacity: 0;
+}
+
+/* Breathing — only while actively listening */
+@keyframes proto-rec-breath {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: .45; }
+}
+body.proto-listening .proto-ai__primary .proto-ai__rec {
+  animation: proto-rec-breath 1.5s ease-in-out infinite;
+}
+
+/* Starting halo — soft expanding ring once, marking the warmup window */
+@keyframes proto-rec-start {
+  0%   { box-shadow: 0 0 0 0 rgba(228, 32, 69, .55); }
+  100% { box-shadow: 0 0 0 8px rgba(228, 32, 69, 0); }
+}
+body.proto-starting .proto-ai__primary .proto-ai__rec {
+  animation: proto-rec-start .9s ease-out 1;
+}
+
+/* --- Mic status pill (Row 2, left side) --- */
+.proto-ai__mic-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  height: 20px;
+  padding: 0 8px;
+  background: #F3F2F1;
+  border-radius: 8px;
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 12px;
+  color: #0B0C0C;
+}
+.proto-ai__mic-row > .proto-ai__ic { width: 16px; height: 16px; }
+.proto-ai__mic-row > .proto-ai__ic:first-child { margin-right: -2px; }
+.proto-ai__device {
+  flex: 1 1 auto;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+/* --- Voice meter — 5 bars of varying base heights (Figma: 7,11,3,7,7) --- */
+.proto-ai__meter {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: 11px;
+  flex: 0 0 auto;
+}
+.proto-ai__meter span {
+  display: inline-block;
+  width: 3px;
+  background: #5CA246;
+  border-radius: 0;
+  transition: height .06s linear, opacity .15s ease, background .15s ease;
+  opacity: 0;
+}
+.proto-ai__meter span[data-band="0"] { height: 7px; }
+.proto-ai__meter span[data-band="1"] { height: 11px; }
+.proto-ai__meter span[data-band="2"] { height: 3px; }
+.proto-ai__meter span[data-band="3"] { height: 7px; }
+.proto-ai__meter span[data-band="4"] { height: 7px; }
+body.proto-listening .proto-ai__meter span { opacity: 1; }
+body.proto-paused    .proto-ai__meter span { opacity: 1; background: #B0AC97; }
+body.proto-stopping  .proto-ai__meter span { opacity: .25; }
+
+/* --- Phone-as-mic toggle (Row 2, right side) --- */
+.proto-ai__phone {
+  height: 20px;
+  width: auto;
+  padding: 0 8px;
+  background: #F3F2F1;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  border: 0;
+  cursor: pointer;
+  color: #0B0C0C;
+  flex: 0 0 auto;
+}
+.proto-ai__phone:hover { background: #ECEAE8; }
+.proto-ai__phone .proto-ai__ic { width: 16px; height: 16px; }
+.proto-ai__phone.is-connected { background: #DDF1D3; color: #2F6A1F; }
+
+/* --- Grip handle (separate variant only — hidden in attached) --- */
+.proto-ai__grip {
+  width: 16px;
+  height: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: grab;
+  color: rgba(0, 0, 0, .35);
+  flex: 0 0 auto;
+  padding: 0 2px;
+}
+.proto-ai__grip:hover { color: rgba(0, 0, 0, .65); }
+.proto-ai__grip:active { cursor: grabbing; }
+.proto-ai__grip .proto-ai__ic { width: 12px; height: 18px; }
+
+/* =====================================================================
+   Patient-context gate (Attached variant only)
+   Attached: AI surface hidden until a patient is opened (Patient button
+   click or "New patient open" sim).
+   Separate: AI surface is always shown — no gate applies (override below).
+   ===================================================================== */
+body.view-attached:not(.patient-open) .proto-ai--attached { display: none !important; }
+body.view-attached:not(.patient-open) .proto-tb-wrap { border-radius: 8px; }
+
+/* Sticky "opened" state — just the darker background. No yellow ribbon
+   and no icon shift; those visuals are reserved for the pressed (:active)
+   and keyboard-focus (:focus-visible) states. */
+.proto-tb-btn.is-surface-open {
+  background: #0E4777;
+}
+
+/* --------- Variant A: Attached --------- */
+/* AI panel docks flush under the toolbar; toolbar bottom corners go square */
+body.view-attached.patient-open .proto-tb-wrap {
+  border-radius: 8px 8px 0 0;
+}
+body.view-attached .proto-ai--attached {
+  display: flex;
+  align-items: center;
+  background: #B1B4B6;
+  /* Width set to match toolbar: Patient(44) + Dashboard(44) + Inbox(44)
+     + Ask(44) + Menu(52) + Handle(16) = 244px */
+  width: 244px;
+  margin-top: 0;
+  border-radius: 0 0 8px 8px;
+  filter:
+    drop-shadow(0 6.4px 14.4px rgba(0, 0, 0, .13))
+    drop-shadow(0 1.2px 3.6px rgba(0, 0, 0, .1));
+  border-top: 1px solid rgba(0, 0, 0, .12);
+  padding: 4px 0 4px 4px;
+}
+body.view-attached .proto-ai--attached .proto-ai__grip { display: none; }
+body.view-attached .proto-ai--attached { padding-right: 4px; }
+
+/* --------- Variant B: Separate floating bar --------- */
+body.view-separate .proto-ai--separate {
+  display: flex;
+  align-items: center;
+  position: fixed;
+  top: calc(50% + 60px);
+  left: calc(50% - 156px);
+  z-index: 11;
+  width: 312px;
+  border-radius: 12px;
+  filter:
+    drop-shadow(0 6.4px 14.4px rgba(0, 0, 0, .13))
+    drop-shadow(0 1.2px 3.6px rgba(0, 0, 0, .1));
+}
+
+body.view-attached .proto-ai--separate { display: none; }
+body.view-separate .proto-ai--attached { display: none; }
+.proto-ai--attached, .proto-ai--separate { display: none; }
