@@ -384,67 +384,42 @@
     if (sessionStorage.getItem(PATIENT_KEY) === '1') setPatientOpen(true);
   } catch (e) {}
 
-  // -------- 6. Web Audio voice meter -------------------------------------
-  let audioCtx = null;
-  let analyser = null;
-  let micStream = null;
+  // -------- 6. Voice meter (synthetic, no parallel mic stream) -----------
+  // Originally this opened a parallel getUserMedia stream to drive the bars
+  // from real audio levels. That competes with the SpeechRecognition stream
+  // owned by app.js — Chrome shares device-level audio settings across
+  // getUserMedia streams and the resulting audio pipeline silently breaks
+  // Web Speech API transcription (interim "Hearing speech…" fires but no
+  // final transcript ever lands). We hit this exact issue earlier in the
+  // project and removed our own audio meter for the same reason.
+  // The bars are now driven by a synthetic animation while listening, which
+  // preserves the visual feedback without touching the mic.
   let rafId = null;
 
-  async function startMeter() {
-    if (audioCtx) return;
-    try {
-      micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      const source = audioCtx.createMediaStreamSource(micStream);
-      analyser = audioCtx.createAnalyser();
-      analyser.fftSize = 64;
-      analyser.smoothingTimeConstant = 0.75;
-      source.connect(analyser);
-
-      try {
-        const track = micStream.getAudioTracks()[0];
-        const trackLabel = track && track.label;
-        const deviceId = track && track.getSettings && track.getSettings().deviceId;
-        let label = trackLabel || 'Microphone';
-        if (navigator.mediaDevices.enumerateDevices) {
-          const devices = await navigator.mediaDevices.enumerateDevices();
-          const match = devices.find((d) => d.kind === 'audioinput' && d.deviceId === deviceId);
-          if (match && match.label) label = match.label;
-        }
-        if (label.length > 28) label = label.slice(0, 27) + '…';
-        document.querySelectorAll('.proto-ai__device').forEach((el) => { el.textContent = label; });
-      } catch (e) { /* keep default label */ }
-
-      const data = new Uint8Array(analyser.frequencyBinCount);
-      const bandCount = 5;
-      const bandSize = Math.floor(data.length / bandCount);
-      function tick() {
-        analyser.getByteFrequencyData(data);
-        const bars = document.querySelectorAll('.proto-ai__meter span');
-        for (let i = 0; i < bandCount; i++) {
-          let sum = 0;
-          for (let j = 0; j < bandSize; j++) sum += data[i * bandSize + j];
-          const avg = sum / bandSize / 255;
-          const ceiling = (i === 0 || i === bandCount - 1) ? 10 : 14;
-          const h = Math.max(3, Math.round(avg * ceiling));
-          bars.forEach((el) => {
-            if (parseInt(el.dataset.band, 10) === i) el.style.height = h + 'px';
-          });
-        }
-        rafId = requestAnimationFrame(tick);
+  function startMeter() {
+    if (rafId) return;
+    const bandCount = 5;
+    const startedAt = performance.now();
+    function tick(now) {
+      const bars = document.querySelectorAll('.proto-ai__meter span');
+      const t = (now - startedAt) / 1000;
+      for (let i = 0; i < bandCount; i++) {
+        // Each band oscillates at a slightly different speed for an organic feel
+        const phase = t * (2.2 + i * 0.6) + i * 1.3;
+        const ceiling = (i === 0 || i === bandCount - 1) ? 10 : 14;
+        const amp = (Math.sin(phase) * 0.35 + 0.45 + Math.random() * 0.2);
+        const h = Math.max(3, Math.round(amp * ceiling));
+        bars.forEach((el) => {
+          if (parseInt(el.dataset.band, 10) === i) el.style.height = h + 'px';
+        });
       }
-      tick();
-    } catch (e) {
-      console.warn('[prototype] voice meter unavailable:', e && e.message);
+      rafId = requestAnimationFrame(tick);
     }
+    rafId = requestAnimationFrame(tick);
   }
   function stopMeter() {
     if (rafId) cancelAnimationFrame(rafId);
     rafId = null;
-    if (micStream) micStream.getTracks().forEach((t) => t.stop());
-    micStream = null;
-    if (audioCtx) { try { audioCtx.close(); } catch (e) {} }
-    audioCtx = null; analyser = null;
     document.querySelectorAll('.proto-ai__meter span').forEach((el) => { el.style.height = ''; });
   }
 
