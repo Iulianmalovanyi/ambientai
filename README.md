@@ -62,8 +62,8 @@ status pill.
 ## Running locally (developers)
 
 ```bash
-git clone https://github.com/<user>/ambiantai
-cd ambiantai
+git clone https://github.com/<user>/ambientai
+cd ambientai
 python3 -m http.server 8000
 # open http://localhost:8000
 ```
