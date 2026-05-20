@@ -153,6 +153,7 @@
             <svg class="proto-tb-mic-ic proto-tb-mic-ic--active"><use href="#fic-mic-tb-active"/></svg>
             <span class="proto-tb-mic-bars"><span></span><span></span><span></span><span></span><span></span></span>
           </span>
+          <span class="proto-tb-mic-count proto-tb-mic-count--empty" aria-hidden="true"></span>
         </button>
       </div>
       <button class="proto-tb-btn proto-tb-menu" type="button" data-proto-btn="menu" aria-label="Menu" data-tooltip="Menu">
@@ -187,13 +188,13 @@
                session straight from idle. -->
           <div class="proto-listener__idle">
             <div class="proto-listener__cta">
-              <button class="proto-listener__cta-listen" type="button" data-proto-action="toggle" aria-label="Start listening">
+              <button class="proto-listener__cta-listen" type="button" data-proto-action="toggle" aria-label="Start listening" data-tooltip="Start listening">
                 <span class="proto-listener__listen-ic" aria-hidden="true"></span>
                 <span class="proto-listener__listen-label">Listen</span>
               </button>
               <span class="proto-listener__cta-divider" aria-hidden="true"></span>
               <div class="proto-listener__lang" data-listener-action="lang-toggle">
-                <button class="proto-listener__cta-lang proto-listener__lang-btn" type="button" aria-haspopup="listbox" aria-expanded="false" aria-label="Patient language">
+                <button class="proto-listener__cta-lang proto-listener__lang-btn" type="button" aria-haspopup="listbox" aria-expanded="false" aria-label="Patient language" data-tooltip="Patient language">
                   <span class="proto-listener__lang-value">EN</span>
                   <svg class="proto-listener__lang-chev" aria-hidden="true" viewBox="0 0 12 12">
                     <path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" d="m3 5 3 3 3-3"/>
@@ -234,7 +235,7 @@
               <!-- Primary pill — morphs between "Stop" (listening) and
                    "Resume" (paused). Same element so the transition is
                    smooth — only icon + label spans swap. -->
-              <button class="proto-listener__primary" type="button" data-proto-action="toggle" aria-label="Stop listening">
+              <button class="proto-listener__primary" type="button" data-proto-action="toggle" aria-label="Stop listening" data-tooltip="End session">
                 <svg class="proto-listener__primary-ic proto-listener__primary-ic--stop"><use href="#fic-stop-sm"/></svg>
                 <span class="proto-listener__primary-rec" aria-hidden="true"></span>
                 <span class="proto-listener__primary-label proto-listener__primary-label--stop">Stop</span>
@@ -251,9 +252,12 @@
         <!-- PERSISTENT mic settings — bottom-aligned, shared across idle/active.
              Sitting outside both row containers means the same DOM element
              stays in place as the bar morphs between states, so the gear
-             icon never visually shifts relative to the drag handle. -->
+             icon never visually shifts relative to the drag handle.
+             When a phone has been paired via the popover the gear icon
+             swaps for a phone glyph (see body.phone-connected rule). -->
         <button class="proto-listener__settings" type="button" data-listener-action="mic-settings" aria-label="Microphone settings" data-tooltip="Microphone settings">
-          <svg class="proto-listener__ic"><use href="#fic-mic-settings-sm"/></svg>
+          <svg class="proto-listener__ic proto-listener__settings-ic proto-listener__settings-ic--gear"><use href="#fic-mic-settings-sm"/></svg>
+          <svg class="proto-listener__ic proto-listener__settings-ic proto-listener__settings-ic--phone"><use href="#fic-phone-sm"/></svg>
         </button>
         <div class="proto-listener__handle" role="button" tabindex="0" aria-label="Drag" data-tooltip="Drag to move">
           <svg class="proto-listener__ic"><use href="#fic-grip-v"/></svg>
@@ -563,39 +567,44 @@
 
       <article class="proto-comp">
         <header class="proto-comp__head">
-          <h2>Risk Summary modal</h2>
-          <p>Opens from the notification card's "Details" link after detections come in. Shows a summary header + a list of detected risk factors.</p>
+          <h2>Phone-as-microphone</h2>
+          <p>Opens from the Listener's mic-settings popover via "Connect with QR code". Steps, a QR, a copyable link, and a status row that flips to <em>Phone connected ✓</em> when the handshake completes. After connection the Listener's gear icon swaps to a phone glyph so the bar surfaces the source at a glance.</p>
         </header>
         <div class="proto-comp__stage proto-comp__stage--modal">
-          <div class="proto-comp__modal-preview proto-comp__modal-preview--summary">
-            <header class="patient-bar">
-              <span class="nhs-tag">NHS</span>
-              <span class="patient-id">123 456 7890</span>
-              <span class="patient-name"><span class="muted">Mr.</span> <strong>Willington, Albert</strong></span>
-              <span class="patient-meta-badge">M</span>
-              <span class="patient-meta">59yrs</span>
-              <span class="patient-meta">12 Nov 1967</span>
-              <button class="icon-btn icon-btn--light"><svg class="ic"><use href="#ic-close"/></svg></button>
+          <div class="proto-comp__modal-preview proto-comp__modal-preview--phone">
+            <header class="patient-bar patient-bar--simple">
+              <svg class="ic ic--lg"><use href="#ic-phone"/></svg>
+              <strong>Use your phone as microphone</strong>
+              <span class="spacer"></span>
+              <button class="icon-btn icon-btn--light" tabindex="-1"><svg class="ic"><use href="#ic-close"/></svg></button>
             </header>
-            <div class="modal-body">
-              <div class="summary-head">
-                <div class="summary-title-row">
-                  <svg class="ic ic--sparkles"><use href="#ic-sparkles"/></svg>
-                  <span class="eyebrow">RISK SUMMARY</span>
+            <div class="modal-body phone-body">
+              <ol class="phone-steps">
+                <li>Open the camera on your phone and scan the QR code below.</li>
+                <li>Tap the link that appears. The phone opens a small microphone page.</li>
+                <li>Tap <em>Start listening</em> on the phone. Place the phone where you want to capture audio.</li>
+                <li>Your phone's transcription streams to this laptop — detections appear here.</li>
+              </ol>
+              <div class="phone-qr-wrap">
+                <div class="phone-qr-mock" role="img" aria-label="QR code preview"></div>
+                <div class="phone-status">
+                  <div class="phone-status-row">
+                    <span class="dot dot--idle"></span>
+                    <span class="phone-status-label">Waiting for phone to connect…</span>
+                  </div>
+                  <div class="phone-url">
+                    <span class="muted">Link:</span>
+                    <code>cthesigns.example/?mic=peer-id</code>
+                    <button class="btn btn--ghost btn--xs" tabindex="-1">Copy</button>
+                  </div>
+                  <p class="muted phone-tip">Phone needs to be on Chrome (Android) or Safari (iOS) and have internet access. The link works on the same Wi-Fi <em>or</em> over the internet.</p>
                 </div>
-                <h2>3 cancer signals identified</h2>
-                <p class="summary-lede">We found factors mentioned during the consultation that may indicate cancer risk. Review the evidence, then confirm or edit the factors in risk assessment.</p>
-              </div>
-              <div class="summary-list">
-                <div class="summary-card"><strong>Persistent cough</strong><p class="muted">"…this annoying little cough that hasn't gone away…"</p></div>
-                <div class="summary-card"><strong>Unintentional weight loss</strong><p class="muted">"…lost about a stone without trying…"</p></div>
-                <div class="summary-card"><strong>Haematuria</strong><p class="muted">"…urine looked pinkish yesterday…"</p></div>
               </div>
             </div>
           </div>
         </div>
         <footer class="proto-comp__foot">
-          <p>Currently lives at <code>#detailsOverlay</code> in <code>index.html</code>. Trigger: detection count &gt; 0.</p>
+          <p>Lives at <code>#phoneOverlay</code>. On handshake, <code>app.js</code> flips <code>#tbPhone.is-connected</code>; <code>prototype.js</code> mirrors that onto <code>body.phone-connected</code> so the Listener gear ↔ phone glyph swap persists after the modal closes.</p>
         </footer>
       </article>
 
@@ -738,6 +747,30 @@
   const tbStop  = document.getElementById('tbStop');
   const tbPhone = document.getElementById('tbPhone');
   const listenChip = document.getElementById('listenChip');
+
+  // Phone-as-microphone connection state — `app.js` flips `is-connected`
+  // on `#tbPhone` when the popover's "Connect with QR" handshake
+  // succeeds (and removes it on disconnect). Mirror that onto a body
+  // class so the Listener's settings button can swap its gear glyph for
+  // a phone glyph (see `body.phone-connected .proto-listener__settings-ic--*`).
+  // Mirroring this way means the visual feedback persists on the bar
+  // even after the popover is closed.
+  function syncPhoneConnectedFlag() {
+    const on = !!(tbPhone && tbPhone.classList.contains('is-connected'));
+    document.body.classList.toggle('phone-connected', on);
+    const settingsBtn = listenerSurface.querySelector('.proto-listener__settings');
+    if (settingsBtn) {
+      settingsBtn.setAttribute('data-tooltip', on ? 'Phone microphone connected' : 'Microphone settings');
+      settingsBtn.setAttribute('aria-label', on ? 'Phone microphone connected — open settings' : 'Microphone settings');
+    }
+  }
+  if (tbPhone) {
+    new MutationObserver(syncPhoneConnectedFlag).observe(tbPhone, {
+      attributes: true,
+      attributeFilter: ['class'],
+    });
+    syncPhoneConnectedFlag();
+  }
 
   const RECORDING_STATES = ['idle', 'starting', 'listening', 'paused', 'stopping'];
   const TRANSITION_MS = 180;
@@ -973,9 +1006,14 @@
   // states only).
   const PATIENT_KEY = 'ambient-ui-patient-open';
   const patientBtn = replicaToolbar.querySelector('[data-proto-btn="patient"]');
+  // The Patient button is enabled only while a patient record is open
+  // in the EHR — it represents the patient context, not an action that
+  // opens a patient. Start disabled; flips to enabled as soon as the
+  // simulated "Open patient" trigger fires.
+  if (patientBtn) patientBtn.disabled = true;
   function setPatientOpen(open) {
     document.body.classList.toggle('patient-open', open);
-    if (patientBtn) patientBtn.classList.toggle('is-surface-open', open);
+    if (patientBtn) patientBtn.disabled = !open;
     try { sessionStorage.setItem(PATIENT_KEY, open ? '1' : '0'); } catch (e) {}
     reconcileListenerPatientGate();
   }
@@ -1017,9 +1055,9 @@
   // The toolbar Patient button represents the EHR's (EMIS / S1) patient
   // context by proxy — it does NOT itself open a patient. Opening a
   // patient is simulated by the "Open patient" button on the technical
-  // control panel (#btnNewPatient). The toolbar still receives the
-  // sticky `is-surface-open` styling when patient-open flips, via
-  // `setPatientOpen` — that's the proxy visual feedback we want to keep.
+  // control panel (#btnNewPatient). The toolbar Patient button is
+  // disabled when no patient is open and enabled (at rest) once one
+  // is — see `setPatientOpen`.
   const newPatientBtn = document.getElementById('btnNewPatient');
   if (newPatientBtn) {
     newPatientBtn.addEventListener('click', () => setPatientOpen(true));
@@ -1289,6 +1327,7 @@
     paintListenerTranscript();
   }
 
+  const toolbarMicCount = toolbarMicBtn && toolbarMicBtn.querySelector('.proto-tb-mic-count');
   function paintListenerCounter() {
     if (!listenerCounter) return;
     let n = 0;
@@ -1304,6 +1343,14 @@
     listenerCounter.textContent = n >= 100 ? '99+' : String(n);
     listenerCounter.classList.toggle('proto-listener__counter--empty', n <= 0);
     listenerCounter.classList.toggle('is-high', n >= 3);
+    // Mirror onto the toolbar Mic button so the clinician sees a risk-count
+    // badge there too when the Listener bar is hidden. CSS suppresses it
+    // automatically while `.is-on` (Listener visible) — no need to gate here.
+    if (toolbarMicCount) {
+      toolbarMicCount.textContent = n >= 100 ? '99+' : String(n);
+      toolbarMicCount.classList.toggle('proto-tb-mic-count--empty', n <= 0);
+      toolbarMicCount.classList.toggle('is-high', n >= 3);
+    }
   }
   if (tbBadge) {
     new MutationObserver(paintListenerCounter).observe(tbBadge, {

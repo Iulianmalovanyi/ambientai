@@ -472,10 +472,12 @@ body.view-components .proto-chip__sep { display: none; }
 /* Paused — "II---" pattern: the two left-most bars hold full height,
    the remaining three collapse to 0 but keep their flex tracks so bars
    1+2 stay anchored to the LEFT of the icon area rather than centring
-   on (and overlaying) the mic shape. */
+   on (and overlaying) the mic shape. Colour drops to white so the
+   paused indicator reads as "frozen / inactive" across both surfaces. */
 .proto-tb-btn--mic[data-state="paused"] .proto-tb-mic-bars span {
   height: 0;
   animation: none;
+  background: #fff;
 }
 .proto-tb-btn--mic[data-state="paused"] .proto-tb-mic-bars span:nth-child(1),
 .proto-tb-btn--mic[data-state="paused"] .proto-tb-mic-bars span:nth-child(2) {
@@ -486,6 +488,46 @@ body.view-components .proto-chip__sep { display: none; }
    Listener bar is currently visible on the page. */
 .proto-tb-btn--mic.is-on { background: #0E4777; }
 .proto-tb-btn--mic.is-on:hover { background: #0a3a64; }
+
+/* Risk-count badge — floats at the top-right of the mic button. Same
+   visual language as the Listener's floating risk counter (amber for
+   1–2, red for ≥ 3). Suppressed while the Listener bar is on screen
+   (.is-on) — the bar carries its own counter and we don't want both.
+   Hidden when empty via the modifier class. */
+.proto-tb-btn--mic { overflow: visible; }
+.proto-tb-mic-count {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 6px;
+  background: #F09238;
+  color: #fff;
+  font: 800 11px / 14px "Lato", var(--font);
+  letter-spacing: -.01em;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow:
+    0 2px 6px rgba(240, 146, 56, .35),
+    0 0 0 2px #034E8E;
+  z-index: 2;
+  pointer-events: none;
+  transition: opacity .14s ease;
+}
+.proto-tb-mic-count.is-high {
+  background: #E42045;
+  box-shadow:
+    0 2px 6px rgba(228, 32, 69, .4),
+    0 0 0 2px #034E8E;
+}
+.proto-tb-mic-count--empty,
+.proto-tb-btn--mic.is-on .proto-tb-mic-count {
+  opacity: 0;
+  visibility: hidden;
+}
 
 /* Listener visibility — `listener-hidden` is toggled by the toolbar Mic.
    Hides the bar but does NOT stop the session: STT, transcript, timer,
@@ -766,9 +808,13 @@ body.view-attached:not(.patient-open) .proto-tb-wrap { border-radius: 8px; }
 /* Sticky "opened" state — just the darker background. No yellow ribbon
    and no icon shift; those visuals are reserved for the pressed (:active)
    and keyboard-focus (:focus-visible) states. */
-.proto-tb-btn.is-surface-open {
-  background: #0E4777;
-}
+/* `is-surface-open` was the previous "patient currently open" styling
+   on the toolbar Patient button (darker selected bg). Patient is now
+   represented by the disabled / enabled state instead — when no patient
+   is open the button is disabled; when one is open the button sits at
+   rest. Rule kept here as a no-op for any stale markup but no longer
+   applied by JS. */
+.proto-tb-btn.is-surface-open { /* intentionally empty */ }
 
 /* --------- Variant A: Attached --------- */
 /* AI panel docks flush under the toolbar; toolbar bottom corners go square */
@@ -1399,6 +1445,27 @@ body.proto-stopping.view-listener .proto-listener__active .proto-listener__logo 
   transform: translateY(1px);
 }
 .proto-listener__settings .proto-listener__ic { width: 22px; height: 22px; }
+/* Gear ↔ phone swap — when a phone has been paired as the mic source,
+   the settings button shows the phone glyph instead of the gear, so the
+   bar surfaces the connection at a glance even after the popover is
+   dismissed. Both SVGs live in the same slot; opacity-faded between
+   so the icon position stays put. */
+.proto-listener__settings {
+  position: relative;
+}
+.proto-listener__settings-ic {
+  transition: opacity .14s ease;
+}
+.proto-listener__settings-ic--phone {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 22px;
+  height: 22px;
+  opacity: 0;
+}
+body.phone-connected .proto-listener__settings-ic--gear { opacity: 0; }
+body.phone-connected .proto-listener__settings-ic--phone { opacity: 1; }
 
 /* Settings pip — for issue/permission states */
 .proto-listener__settings.is-warning::after,
@@ -1652,6 +1719,15 @@ body.proto-paused.view-listener .proto-listener__primary-rec { display: inline-b
   font-size: 13px;
   line-height: 16px;
   font-variant-numeric: tabular-nums;
+  transition: color .14s ease;
+}
+/* Red while the session is actively recording — gives the clinician a
+   peripheral signal that the mic is hot. Grey in paused / idle so the
+   running session vs frozen session is visually distinct. */
+body.proto-listening .proto-listener__primary-time,
+body.proto-starting .proto-listener__primary-time,
+body.proto-stopping .proto-listener__primary-time {
+  color: #E42045;
 }
 
 /* ----- Handle (right edge) — light dots on the dark wrap -----
@@ -1913,7 +1989,7 @@ body.proto-paused.view-listener .proto-listener__primary-rec { display: inline-b
   display: inline-block;
   width: 3px;
   height: 3px;
-  background: #fff;
+  background: #F9CB40;
   border-radius: 1.5px;
   transform-origin: center;
   transition: height .18s cubic-bezier(.22, .9, .3, 1);
@@ -2258,8 +2334,14 @@ body.proto-paused.view-listener .proto-listener__primary-rec { display: inline-b
 .proto-listener--variant-compact[data-state="listening"] .proto-listener__bars span:nth-child(5) { animation: proto-listener-bar-5 .85s ease-in-out infinite; }
 
 /* Paused: freeze in a pause-icon pattern --II- (middle two bars full
-   height, others collapsed). */
-.proto-listener--variant-compact[data-state="paused"] .proto-listener__bars span { height: 0; animation: none; }
+   height, others collapsed). Colour drops to white so the indicator
+   reads as "frozen / inactive" — the yellow is reserved for the live
+   listening signal. */
+.proto-listener--variant-compact[data-state="paused"] .proto-listener__bars span {
+  height: 0;
+  animation: none;
+  background: #fff;
+}
 .proto-listener--variant-compact[data-state="paused"] .proto-listener__bars span:nth-child(3),
 .proto-listener--variant-compact[data-state="paused"] .proto-listener__bars span:nth-child(4) { height: 11px; }
 
@@ -2435,16 +2517,14 @@ body.proto-paused.view-listener .proto-listener__primary-rec { display: inline-b
   box-decoration-break: clone;
   -webkit-box-decoration-break: clone;
 }
-.session-transcript .kw--red    { background: #fcdfe4; color: #b21d35; box-shadow: inset 0 -1px 0 rgba(178, 29, 53, .25); }
-.session-transcript .kw--amber  { background: #fff0d4; color: #8a5400; box-shadow: inset 0 -1px 0 rgba(138, 84, 0, .25); }
-.session-transcript .kw--purple { background: #ece6fb; color: #563dc0; box-shadow: inset 0 -1px 0 rgba(86, 61, 192, .25); }
-.session-transcript .kw--blue   { background: #dceaf9; color: #0e4777; box-shadow: inset 0 -1px 0 rgba(14, 71, 119, .25); }
-.session-transcript .kw--green  { background: #dff0d6; color: #2f6a1f; box-shadow: inset 0 -1px 0 rgba(47, 106, 31, .25); }
-.session-transcript .kw--red { background: #fbdfe4; color: #b21d35; }
-.session-transcript .kw--amber { background: #fff0d2; color: #8a5400; }
-.session-transcript .kw--purple { background: #ece6fa; color: #563dc0; }
-.session-transcript .kw--blue { background: #dceaf8; color: #0e4777; }
-.session-transcript .kw--green { background: #dff0d6; color: #2f6a1f; }
+/* Highlight palette aligned to the Listener's risk-counter colour
+   families: red ties to the wrap counter's `#E42045`, amber to the
+   counter's low-count `#F09238`. */
+.session-transcript .kw--red    { background: #FCE4E9; color: #C8163A; box-shadow: inset 0 -1px 0 rgba(228, 32, 69, .28); }
+.session-transcript .kw--amber  { background: #FFEFD4; color: #8A5200; box-shadow: inset 0 -1px 0 rgba(240, 146, 56, .28); }
+.session-transcript .kw--purple { background: #ECE6FB; color: #563DC0; box-shadow: inset 0 -1px 0 rgba(86, 61, 192, .25); }
+.session-transcript .kw--blue   { background: #DCEAF9; color: #0E4777; box-shadow: inset 0 -1px 0 rgba(14, 71, 119, .25); }
+.session-transcript .kw--green  { background: #DFF0D6; color: #2F6A1F; box-shadow: inset 0 -1px 0 rgba(47, 106, 31, .25); }
 
 /* Right sidebar — narrower (280 px) to keep the transcript the focus */
 .session-side {
@@ -2510,15 +2590,15 @@ body.proto-paused.view-listener .proto-listener__primary-rec { display: inline-b
   flex-direction: column;
   gap: 4px;
 }
-/* Factor name lives in a dark rounded chip — the same affordance the
-   live Listener uses for the AI-detected label. Italic quote drops
-   directly underneath in muted grey. */
+/* Factor name lives in a dark rounded chip — same dark-glass affordance
+   the Listener bar uses, so the two surfaces read as one system.
+   Italic quote drops directly underneath in muted grey. */
 .session-factor-chip {
   display: inline-flex;
   align-items: center;
   align-self: flex-start;
-  padding: 4px 10px;
-  background: #2D3038;
+  padding: 5px 12px;
+  background: rgba(11, 12, 12, .9);
   color: #fff;
   font: 700 13px / 18px "Lato", var(--font);
   letter-spacing: -.005em;
@@ -2528,7 +2608,7 @@ body.proto-paused.view-listener .proto-listener__primary-rec { display: inline-b
   display: block;
   padding-left: 4px;
   font: 500 13px / 18px "Lato", var(--font);
-  color: #5a6271;
+  color: #5A6271;
   font-style: italic;
 }
 .session-side-empty {
@@ -2543,9 +2623,9 @@ body.proto-paused.view-listener .proto-listener__primary-rec { display: inline-b
 }
 .session-side-empty[hidden] { display: none; }
 .session-side-foot {
-  padding: 14px 16px 18px;
-  border-top: 1px solid #eaecef;
-  background: #f8f9fb;
+  padding: 16px;
+  border-top: 1px solid #EAECEF;
+  background: #F8F9FB;
 }
 .session-side-foot .btn {
   width: 100%;
@@ -2553,15 +2633,21 @@ body.proto-paused.view-listener .proto-listener__primary-rec { display: inline-b
   background: #1671BE;
   color: #fff;
   font: 800 14px / 18px "Lato", var(--font);
-  border-radius: 8px;
+  letter-spacing: -.005em;
+  border-radius: 10px;
   padding: 12px 18px;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 8px;
+  box-shadow:
+    0 1px 2px rgba(14, 71, 119, .16),
+    inset 0 -2px 0 rgba(0, 0, 0, .08);
+  transition: background .14s ease, transform .08s ease;
 }
 .session-side-foot .btn:hover { background: #0E4777; }
+.session-side-foot .btn:active { transform: translateY(1px); }
 .session-side-foot .btn .ic { width: 16px; height: 16px; }
 
 /* Narrow viewport — sidebar drops below the transcript */
@@ -2686,6 +2772,109 @@ body.proto-paused.view-listener .proto-listener__primary-rec { display: inline-b
   gap: 6px;
 }
 .proto-comp__modal-preview--session .session-side-foot .btn .ic { width: 14px; height: 14px; }
+
+/* Phone-as-microphone preview — mirrors the real `#phoneOverlay` layout
+   at a constrained size for the Components gallery. The QR is a CSS-
+   only mock (no QRious dependency in preview). */
+.proto-comp__modal-preview--phone .patient-bar { padding: 10px 14px; }
+.proto-comp__modal-preview--phone .modal-body { padding: 16px 20px 20px; }
+.proto-comp__modal-preview--phone .phone-steps {
+  margin: 0 0 14px;
+  padding-left: 20px;
+  font: 500 13px / 19px "Lato", var(--font);
+  color: #1f2630;
+}
+.proto-comp__modal-preview--phone .phone-steps li { margin-bottom: 4px; }
+.proto-comp__modal-preview--phone .phone-qr-wrap {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+/* QR mock — finder squares + faint data grid to read as "QR-shaped"
+   without needing the QRious library at preview time. */
+.proto-comp__modal-preview--phone .phone-qr-mock {
+  width: 132px;
+  height: 132px;
+  flex: 0 0 132px;
+  border-radius: 6px;
+  background-color: #fff;
+  background-image:
+    /* Top-left finder */
+    linear-gradient(#0B0C0C, #0B0C0C),
+    /* Top-right finder */
+    linear-gradient(#0B0C0C, #0B0C0C),
+    /* Bottom-left finder */
+    linear-gradient(#0B0C0C, #0B0C0C),
+    /* Data grid */
+    radial-gradient(circle at center, #0B0C0C 30%, transparent 32%);
+  background-size:
+    30px 30px,
+    30px 30px,
+    30px 30px,
+    8px 8px;
+  background-position:
+    8px 8px,
+    calc(100% - 8px) 8px,
+    8px calc(100% - 8px),
+    50px 50px;
+  background-repeat:
+    no-repeat,
+    no-repeat,
+    no-repeat,
+    repeat;
+  box-shadow: inset 0 0 0 6px #fff;
+  border: 1px solid #E5E7EB;
+}
+.proto-comp__modal-preview--phone .phone-status {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.proto-comp__modal-preview--phone .phone-status-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font: 700 12px / 16px "Lato", var(--font);
+  color: #1f2630;
+}
+.proto-comp__modal-preview--phone .dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #F09238;
+  box-shadow: 0 0 0 3px rgba(240, 146, 56, .18);
+}
+.proto-comp__modal-preview--phone .phone-url {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: 500 12px / 16px "Lato", var(--font);
+  color: #4a5260;
+  flex-wrap: wrap;
+}
+.proto-comp__modal-preview--phone .phone-url code {
+  background: #F0F2F5;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font: 600 11px / 14px "Lato", var(--font);
+  color: #0B0C0C;
+}
+.proto-comp__modal-preview--phone .phone-url .btn--xs {
+  border: 1px solid #D0D5DC;
+  background: #fff;
+  color: #1f2630;
+  font: 700 11px / 14px "Lato", var(--font);
+  padding: 3px 8px;
+  border-radius: 4px;
+  cursor: default;
+}
+.proto-comp__modal-preview--phone .phone-tip {
+  margin: 0;
+  font: 500 11px / 15px "Lato", var(--font);
+  color: #6b7280;
+}
 
 /* =====================================================================
    Direction = Components — non-interactive gallery of building blocks
