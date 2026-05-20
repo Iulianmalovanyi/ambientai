@@ -362,28 +362,139 @@ body.view-components .proto-chip__sep { display: none; }
 /* Drag handle — 16×24, 8 dots in a 2×4 grid.
    Sits on the wrapper colour (#034E8E) so it reads as a distinct grip zone
    rather than another button. No hover/active bg shift — just the cursor. */
-/* Drag handle — same 3 × 2 dot SVG as the Listener handle (#fic-grip-v)
-   so both surfaces share one visual language. The toolbar's blue
-   background + inset bottom shadow stays. */
+/* Drag handle — identical visual to the Listener handle: same
+   #fic-grip-v SVG, same 12×18 dot footprint, same off-white tint. The
+   toolbar wrapper keeps its blue bg + inset bottom shadow so it still
+   reads as part of the toolbar's button row. */
 .proto-tb-handle {
   width: 16px;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0 5px;
+  padding: 0;
   cursor: grab;
   background: #034E8E;
-  color: rgba(255, 255, 255, .75);
-  /* Same inset bottom shading as buttons so the ridge line carries across */
+  color: rgba(255, 255, 255, .55);
   box-shadow: inset 0 -2px 0 rgba(0, 0, 0, .1);
 }
-.proto-tb-handle:hover { color: rgba(255, 255, 255, .92); }
+.proto-tb-handle:hover { color: rgba(255, 255, 255, .85); }
 .proto-tb-handle:active { cursor: grabbing; }
 .proto-tb-grip {
   width: 12px;
   height: 18px;
   display: block;
 }
+
+/* =====================================================================
+   Toolbar Mic button — shows the live Listener session state and
+   toggles the Listener bar's visibility on click. The icon sits in the
+   standard 32×32 toolbar icon area; in active states the mic shifts up
+   slightly to make room for a 5-bar voice equaliser at the bottom.
+   ===================================================================== */
+.proto-tb-mic {
+  position: relative;
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+/* Two stacked SVGs sharing the same 32×32 box — the icon never shifts
+   between states, it just swaps which mic is visible. Plain has a stem
+   under the yoke; Active omits the stem so the amber visualiser bars
+   slot into the same vertical space. */
+.proto-tb-mic-ic {
+  position: absolute;
+  inset: 0;
+  display: block;
+  transition: opacity .22s cubic-bezier(.4, 0, .2, 1);
+}
+.proto-tb-mic-ic > use,
+.proto-tb-mic-ic > svg { width: 100%; height: 100%; }
+.proto-tb-mic-ic--active { opacity: 0; }
+/* The active mic + visualiser bars only show when the Listener bar is
+   HIDDEN. When the Listener is open the user can already see the live
+   equaliser inside the bar, so the toolbar drops back to the plain mic
+   to avoid a duplicated indicator. */
+.proto-tb-btn--mic:not(.is-on)[data-state="listening"] .proto-tb-mic-ic--plain,
+.proto-tb-btn--mic:not(.is-on)[data-state="paused"] .proto-tb-mic-ic--plain,
+.proto-tb-btn--mic:not(.is-on)[data-state="starting"] .proto-tb-mic-ic--plain,
+.proto-tb-btn--mic:not(.is-on)[data-state="stopping"] .proto-tb-mic-ic--plain { opacity: 0; }
+.proto-tb-btn--mic:not(.is-on)[data-state="listening"] .proto-tb-mic-ic--active,
+.proto-tb-btn--mic:not(.is-on)[data-state="paused"] .proto-tb-mic-ic--active,
+.proto-tb-btn--mic:not(.is-on)[data-state="starting"] .proto-tb-mic-ic--active,
+.proto-tb-btn--mic:not(.is-on)[data-state="stopping"] .proto-tb-mic-ic--active { opacity: 1; }
+/* Bars container — 5 amber bars (#F9CB40) in the space the plain mic's
+   stem used to occupy. Hidden by default; faded in for any active
+   session state. */
+.proto-tb-mic-bars {
+  position: absolute;
+  bottom: 4px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 8px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .22s cubic-bezier(.4, 0, .2, 1);
+}
+.proto-tb-btn--mic:not(.is-on)[data-state="listening"] .proto-tb-mic-bars,
+.proto-tb-btn--mic:not(.is-on)[data-state="paused"] .proto-tb-mic-bars,
+.proto-tb-btn--mic:not(.is-on)[data-state="starting"] .proto-tb-mic-bars,
+.proto-tb-btn--mic:not(.is-on)[data-state="stopping"] .proto-tb-mic-bars {
+  opacity: 1;
+}
+.proto-tb-mic-bars span {
+  width: 3px;
+  background: #F9CB40;
+  border-radius: 1px;
+  transition: height .22s cubic-bezier(.4, 0, .2, 1);
+}
+/* Default resting heights mirror the Figma "Mic Active" spec. */
+.proto-tb-mic-bars span:nth-child(1) { height: 5px; }
+.proto-tb-mic-bars span:nth-child(2) { height: 8px; }
+.proto-tb-mic-bars span:nth-child(3) { height: 3px; }
+.proto-tb-mic-bars span:nth-child(4) { height: 5px; }
+.proto-tb-mic-bars span:nth-child(5) { height: 7px; }
+/* Listening — bars pulse asymmetrically. */
+@keyframes proto-tb-mic-bar-1 { 0%, 100% { height: 3px; } 50% { height: 6px; } }
+@keyframes proto-tb-mic-bar-2 { 0%, 100% { height: 5px; } 50% { height: 8px; } }
+@keyframes proto-tb-mic-bar-3 { 0%, 100% { height: 2px; } 50% { height: 4px; } }
+@keyframes proto-tb-mic-bar-4 { 0%, 100% { height: 3px; } 50% { height: 7px; } }
+@keyframes proto-tb-mic-bar-5 { 0%, 100% { height: 3px; } 50% { height: 6px; } }
+.proto-tb-btn--mic[data-state="listening"] .proto-tb-mic-bars span:nth-child(1) { animation: proto-tb-mic-bar-1 .9s ease-in-out infinite; }
+.proto-tb-btn--mic[data-state="listening"] .proto-tb-mic-bars span:nth-child(2) { animation: proto-tb-mic-bar-2 1.1s ease-in-out infinite; }
+.proto-tb-btn--mic[data-state="listening"] .proto-tb-mic-bars span:nth-child(3) { animation: proto-tb-mic-bar-3 .8s ease-in-out infinite; }
+.proto-tb-btn--mic[data-state="listening"] .proto-tb-mic-bars span:nth-child(4) { animation: proto-tb-mic-bar-4 1.0s ease-in-out infinite; }
+.proto-tb-btn--mic[data-state="listening"] .proto-tb-mic-bars span:nth-child(5) { animation: proto-tb-mic-bar-5 .85s ease-in-out infinite; }
+/* Paused — "II---" pattern: the two left-most bars hold full height,
+   the remaining three collapse to 0 but keep their flex tracks so bars
+   1+2 stay anchored to the LEFT of the icon area rather than centring
+   on (and overlaying) the mic shape. */
+.proto-tb-btn--mic[data-state="paused"] .proto-tb-mic-bars span {
+  height: 0;
+  animation: none;
+}
+.proto-tb-btn--mic[data-state="paused"] .proto-tb-mic-bars span:nth-child(1),
+.proto-tb-btn--mic[data-state="paused"] .proto-tb-mic-bars span:nth-child(2) {
+  height: 8px;
+}
+/* Open / toggled-on visual: the toolbar button shows the same dark-blue
+   selected bg as the other panel buttons, so the user can see the
+   Listener bar is currently visible on the page. */
+.proto-tb-btn--mic.is-on { background: #0E4777; }
+.proto-tb-btn--mic.is-on:hover { background: #0a3a64; }
+
+/* Listener visibility — `listener-hidden` is toggled by the toolbar Mic.
+   Hides the bar but does NOT stop the session: STT, transcript, timer,
+   risk detection all keep running in the DOM. Specificity matters here:
+   `body.view-listener .proto-listener { display: inline-block !important }`
+   lives further down the file, so this rule needs the extra class on
+   the body to outrank it (0,3,1 beats 0,2,1). */
+body.listener-hidden.view-listener .proto-listener,
+body.listener-hidden .proto-listener { display: none !important; }
 
 /* =====================================================================
    Ambient AI surface (shared between attached + separate variants)
@@ -1492,7 +1603,7 @@ body.proto-starting.view-listener .proto-listener__stop-paused { display: none; 
   width: 140px;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   height: 36px;
   padding: 0 8px;
   background: #fff;
@@ -1500,8 +1611,9 @@ body.proto-starting.view-listener .proto-listener__stop-paused { display: none; 
   border-radius: 10px;
   cursor: pointer;
   color: #0B0C0C;
-  /* Figma "Paragraph/Mobile/Body • Bold": 800 16 / 20 */
-  font: 800 16px / 20px "Lato", var(--font);
+  /* 14 / 18 keeps "Resume" + the tabular timer inside the pill at all
+     container widths; the 16 / 20 we had before truncated the label. */
+  font: 800 14px / 18px "Lato", var(--font);
   letter-spacing: -.02em;
   box-shadow: 0 1px 2px rgba(0, 0, 0, .06);
   transition: background .14s ease, transform .08s ease, box-shadow .14s ease;
@@ -1537,7 +1649,7 @@ body.proto-paused.view-listener .proto-listener__primary-rec { display: inline-b
   margin-left: auto;
   color: #868E93;
   font-weight: 400;
-  font-size: 14px;
+  font-size: 13px;
   line-height: 16px;
   font-variant-numeric: tabular-nums;
 }
@@ -2054,10 +2166,17 @@ body.proto-paused.view-listener .proto-listener__primary-rec { display: inline-b
   overflow: hidden;
   padding: 0 10px;
 }
-.proto-listener--variant-compact .proto-listener__primary-time {
+/* Elapsed time is clinically meaningful — never truncate. The label
+   ("Stop" / "Resume") absorbs any shrinkage instead. */
+.proto-listener--variant-compact .proto-listener__primary-label {
+  flex: 0 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.proto-listener--variant-compact .proto-listener__primary-time {
+  flex: 0 0 auto;
   white-space: nowrap;
 }
 
@@ -2257,30 +2376,29 @@ body.proto-paused.view-listener .proto-listener__primary-rec { display: inline-b
 .session-head .summary-title-row {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  margin-bottom: 8px;
-  padding: 4px 10px 4px 8px;
-  background: #eaf1fb;
-  border-radius: 999px;
+  gap: 8px;
+  margin-bottom: 10px;
+  background: transparent;
+  padding: 0;
 }
 .session-head .summary-title-row .ic { width: 14px; height: 14px; color: #1671BE; }
 /* AI sparkle in the transcript modal eyebrow — same mask as the Listen
    icon; background is the purple gradient. */
 .session-head .summary-title-row .session-ai-sparkle {
   display: inline-block;
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
   background: linear-gradient(180deg, #C211E5 0.48%, #C55DE4 97.6%);
   -webkit-mask: url('assets/figma-icons/fluent-sparkle.svg') no-repeat center / contain;
           mask: url('assets/figma-icons/fluent-sparkle.svg') no-repeat center / contain;
 }
-/* Match the eyebrow tint to the gradient so the row reads coherently. */
-.session-head .summary-title-row .session-ai-sparkle ~ .eyebrow { color: #7a4cf7; }
+/* Eyebrow — uppercase, tracked, purple to match the sparkle. */
+.session-head .summary-title-row .session-ai-sparkle ~ .eyebrow { color: #4F2BAA; }
 .session-head .eyebrow {
-  font: 700 11px / 14px "Lato", var(--font);
-  letter-spacing: .04em;
-  color: #1671BE;
-  text-transform: none;
+  font: 800 12px / 16px "Lato", var(--font);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: #4F2BAA;
 }
 .session-head h2 {
   margin: 0 0 8px;
@@ -2344,43 +2462,72 @@ body.proto-paused.view-listener .proto-listener__primary-rec { display: inline-b
 }
 .session-side-head .eyebrow {
   font: 800 13px / 18px "Lato", var(--font);
-  letter-spacing: 0;
+  letter-spacing: .06em;
   color: #0B0C0C;
-  text-transform: none;
+  text-transform: uppercase;
 }
+/* Counter — rounded-square notification badge matching the Listener's
+   floating risk-counter style (8 px radius, dark ring) instead of the
+   pill it used to be. Red for any non-zero count. */
 .session-side-count {
   background: #E42045;
   color: #fff;
-  border-radius: 999px;
-  padding: 2px 9px;
-  font: 800 12px / 16px "Lato", var(--font);
-  min-width: 24px;
-  text-align: center;
+  border-radius: 8px;
+  padding: 0 8px;
+  min-width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font: 800 14px / 18px "Lato", var(--font);
+  letter-spacing: -.01em;
+  box-shadow:
+    0 4px 10px rgba(228, 32, 69, .25),
+    0 0 0 2px #fff;
 }
-.session-side-count.is-zero { background: #d6dade; color: #6b7280; }
+.session-side-count.is-zero {
+  background: #d6dade;
+  color: #6b7280;
+  box-shadow: 0 0 0 2px #fff;
+}
 
 .session-side-list {
   list-style: none;
   margin: 0;
-  padding: 10px 12px 12px;
+  padding: 14px 16px 16px;
   overflow-y: auto;
   flex: 1 1 auto;
   min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 .session-side-list li {
-  padding: 10px 12px;
-  border-radius: 8px;
-  margin-bottom: 2px;
-  font: 700 13px / 18px "Lato", var(--font);
-  color: #0B0C0C;
+  padding: 0;
+  margin: 0;
   cursor: default;
-  transition: background .12s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
-.session-side-list li:hover { background: rgba(0, 0, 0, .04); }
-.session-side-list .kw-pill {
+/* Factor name lives in a dark rounded chip — the same affordance the
+   live Listener uses for the AI-detected label. Italic quote drops
+   directly underneath in muted grey. */
+.session-factor-chip {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  padding: 4px 10px;
+  background: #2D3038;
+  color: #fff;
+  font: 700 13px / 18px "Lato", var(--font);
+  letter-spacing: -.005em;
+  border-radius: 999px;
+}
+.session-factor-quote {
   display: block;
-  margin-top: 4px;
-  font: 500 12px / 17px "Lato", var(--font);
+  padding-left: 4px;
+  font: 500 13px / 18px "Lato", var(--font);
   color: #5a6271;
   font-style: italic;
 }

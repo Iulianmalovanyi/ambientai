@@ -15,6 +15,12 @@
   // builds so the Listener doesn't appear "missing" because it was pinned
   // beyond the current viewport.
   const STORAGE_LISTENER_POS = 'ambient-ui-listener-pos-v2';
+  // Visibility toggle (controlled by the toolbar Mic button). Default
+  // first-load behaviour: the Listener is HIDDEN until the user opens it
+  // from the toolbar. The state of the session itself keeps running while
+  // hidden (STT, timer, counter, transcript) — toggling the toolbar mic
+  // just shows/hides the bar.
+  const STORAGE_LISTENER_VIS = 'ambient-ui-listener-vis-v1';
 
   // Drag + persistence is on. Listener uses right + bottom anchors so the
   // wrap expands UPWARD on listen — controls + handle stay still.
@@ -132,23 +138,27 @@
   replicaToolbar.innerHTML = `
     <div class="proto-tb-wrap">
       <div class="proto-tb-primary">
-        <button class="proto-tb-btn" type="button" data-proto-btn="patient" aria-label="Patient">
+        <button class="proto-tb-btn" type="button" data-proto-btn="patient" aria-label="Patient" data-tooltip="Patient">
           <svg class="proto-tb-icon"><use href="#fic-patient"/></svg>
         </button>
-        <button class="proto-tb-btn" type="button" data-proto-btn="dashboard" aria-label="Dashboard">
+        <button class="proto-tb-btn" type="button" data-proto-btn="dashboard" aria-label="Dashboard" data-tooltip="Dashboard">
           <svg class="proto-tb-icon"><use href="#fic-dashboard"/></svg>
         </button>
-        <button class="proto-tb-btn" type="button" data-proto-btn="inbox" aria-label="Inbox">
+        <button class="proto-tb-btn" type="button" data-proto-btn="inbox" aria-label="Inbox" data-tooltip="Inbox">
           <svg class="proto-tb-icon"><use href="#fic-inbox"/></svg>
         </button>
-        <button class="proto-tb-btn" type="button" data-proto-btn="ask" aria-label="Ask">
-          <svg class="proto-tb-icon"><use href="#fic-ask"/></svg>
+        <button class="proto-tb-btn proto-tb-btn--mic" type="button" data-proto-btn="mic" data-listener-vis-toggle="1" aria-label="Toggle Listener" data-tooltip="Listener">
+          <span class="proto-tb-icon proto-tb-mic" aria-hidden="true">
+            <svg class="proto-tb-mic-ic proto-tb-mic-ic--plain"><use href="#fic-mic-tb"/></svg>
+            <svg class="proto-tb-mic-ic proto-tb-mic-ic--active"><use href="#fic-mic-tb-active"/></svg>
+            <span class="proto-tb-mic-bars"><span></span><span></span><span></span><span></span><span></span></span>
+          </span>
         </button>
       </div>
-      <button class="proto-tb-btn proto-tb-menu" type="button" data-proto-btn="menu" aria-label="Menu">
+      <button class="proto-tb-btn proto-tb-menu" type="button" data-proto-btn="menu" aria-label="Menu" data-tooltip="Menu">
         <svg class="proto-tb-icon proto-tb-icon--menu"><use href="#fic-menu-cts"/></svg>
       </button>
-      <div class="proto-tb-handle" role="button" tabindex="0" aria-label="Drag toolbar" title="Drag to move">
+      <div class="proto-tb-handle" role="button" tabindex="0" aria-label="Drag toolbar" data-tooltip="Drag to move">
         <svg class="proto-tb-grip" aria-hidden="true"><use href="#fic-grip-v"/></svg>
       </div>
     </div>
@@ -283,6 +293,41 @@
   // and Ambient controls are two separate, individually-draggable surfaces.
   document.body.appendChild(listenerSurface);
 
+  // Toolbar Mic button — shows the live session state via its bars, and
+  // toggles the Listener's visibility on click. Looked up once here so
+  // the closure-scoped `render()` in the state machine can update its
+  // `data-state` without re-querying.
+  const toolbarMicBtn = replicaToolbar.querySelector('[data-listener-vis-toggle]');
+
+  // ---- Listener visibility (toolbar Mic button toggle) -------------------
+  // The Listener bar is shown/hidden by adding `listener-hidden` on the
+  // body — the session itself keeps running while hidden (STT, timer,
+  // counter, transcript all unaffected). Default first load = HIDDEN; user
+  // taps the toolbar Mic to reveal. Choice persists to localStorage.
+  function loadListenerVisibility() {
+    try {
+      const v = localStorage.getItem(STORAGE_LISTENER_VIS);
+      if (v === 'shown') return true;
+      if (v === 'hidden') return false;
+    } catch (e) {}
+    return false;
+  }
+  function applyListenerVisibility(visible) {
+    document.body.classList.toggle('listener-hidden', !visible);
+    if (toolbarMicBtn) toolbarMicBtn.classList.toggle('is-on', visible);
+    try { localStorage.setItem(STORAGE_LISTENER_VIS, visible ? 'shown' : 'hidden'); } catch (e) {}
+  }
+  if (toolbarMicBtn) {
+    toolbarMicBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      const hidden = document.body.classList.contains('listener-hidden');
+      applyListenerVisibility(hidden);   // toggle
+    });
+  }
+  // Apply saved (or default-hidden) state immediately so the bar doesn't
+  // flash on first paint.
+  applyListenerVisibility(loadListenerVisibility());
+
   // -------- 3b. Components gallery (view = components) ------------------
   // Non-interactive showcase of the main building blocks. Each card holds a
   // freshly-built static representation — IDs stripped so they don't clash
@@ -295,7 +340,13 @@
             <button class="proto-tb-btn"><svg class="proto-tb-icon"><use href="#fic-patient"/></svg></button>
             <button class="proto-tb-btn"><svg class="proto-tb-icon"><use href="#fic-dashboard"/></svg></button>
             <button class="proto-tb-btn"><svg class="proto-tb-icon"><use href="#fic-inbox"/></svg></button>
-            <button class="proto-tb-btn"><svg class="proto-tb-icon"><use href="#fic-ask"/></svg></button>
+            <button class="proto-tb-btn proto-tb-btn--mic">
+              <span class="proto-tb-icon proto-tb-mic" aria-hidden="true">
+                <svg class="proto-tb-mic-ic proto-tb-mic-ic--plain"><use href="#fic-mic-tb"/></svg>
+                <svg class="proto-tb-mic-ic proto-tb-mic-ic--active"><use href="#fic-mic-tb-active"/></svg>
+                <span class="proto-tb-mic-bars"><span></span><span></span><span></span><span></span><span></span></span>
+              </span>
+            </button>
           </div>
           <button class="proto-tb-btn proto-tb-menu">
             <svg class="proto-tb-icon proto-tb-icon--menu"><use href="#fic-menu-cts"/></svg>
@@ -769,6 +820,12 @@
       if (typeof listenerSurface !== 'undefined' && listenerSurface) {
         listenerSurface.dataset.state = next;
       }
+      // Same data-state on the toolbar Mic button so its bars track the
+      // session state (animate while listening, freeze in pause pattern,
+      // disappear in idle). Same source-of-truth, no extra wiring.
+      if (toolbarMicBtn) {
+        toolbarMicBtn.dataset.state = next;
+      }
 
       // Primary pill label + aria
       const label = LABELS[next];
@@ -835,6 +892,9 @@
     document.body.classList.add(`proto-${state}`);
     if (typeof listenerSurface !== 'undefined' && listenerSurface) {
       listenerSurface.dataset.state = state;
+    }
+    if (typeof toolbarMicBtn !== 'undefined' && toolbarMicBtn) {
+      toolbarMicBtn.dataset.state = state;
     }
 
     return { get state() { return state; }, set, reconcileFromDOM };
@@ -1341,10 +1401,10 @@
 
   function renderSessionFactors(factors) {
     if (!sessionSideList) return;
-    sessionSideList.innerHTML = factors.map((f, i) => `
+    sessionSideList.innerHTML = factors.map((f) => `
       <li>
-        <div>${escapeHtml(f.name)}</div>
-        ${f.phrase ? `<span class="kw-pill">"${escapeHtml(f.phrase)}"</span>` : ''}
+        <span class="session-factor-chip">${escapeHtml(f.name)}</span>
+        ${f.phrase ? `<span class="session-factor-quote">"${escapeHtml(f.phrase)}"</span>` : ''}
       </li>
     `).join('');
     if (sessionSideEmpty) sessionSideEmpty.hidden = factors.length > 0;
@@ -1420,13 +1480,15 @@
   const listenerPopover = listenerSurface.querySelector('.proto-listener__popover');
   function positionPopover(triggerEl) {
     if (!listenerPopover || !triggerEl) return;
-    const rect = triggerEl.getBoundingClientRect();
+    // Align the popover to the Listener bar's footprint: same width,
+    // right edge flush with the bar, sitting just below it. Anchoring
+    // to the bar (not the gear) keeps the popover stable as the bar
+    // morphs between states / variants.
     const wrapRect = listenerSurface.getBoundingClientRect();
-    // Position relative to the feed surface (which has position: relative implied
-    // by being a positioned ancestor in CSS; we'll absolute-position here).
-    listenerPopover.style.top = (rect.bottom - wrapRect.top + 6) + 'px';
-    listenerPopover.style.right = (wrapRect.right - rect.right) + 'px';
+    listenerPopover.style.top = (wrapRect.height + 6) + 'px';
+    listenerPopover.style.right = '0px';
     listenerPopover.style.left = 'auto';
+    listenerPopover.style.width = wrapRect.width + 'px';
   }
   listenerSurface.querySelectorAll('[data-listener-action="mic-settings"]').forEach((btn) => {
     btn.addEventListener('click', (e) => {
