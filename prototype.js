@@ -1,52 +1,123 @@
 /* =====================================================================
    AmbiantAI PoC — UI exploration overlay
    Self-contained, does not import from or modify app.js.
-   Adds: view-switcher chip, replica toolbar markup (Figma-accurate),
-   Ambient AI surface (attached + separate variants), click proxying to
-   existing buttons, read-only state mirroring, Web Audio voice meter,
-   device label, draggable toolbar with localStorage position persistence.
+   Adds: replica toolbar (Figma-accurate, draggable), horizontal Ambient
+   AI feed surface (draggable, right-anchored), Components gallery view.
+   Reads from app.js state (mutations on #tbStart / #listenChip) but never
+   mutates the underlying audio pipeline.
    ===================================================================== */
 (function () {
   if (new URL(location.href).searchParams.get('mic')) return; // skip phone-mic page
 
   const STORAGE_VIEW = 'ambient-ui-view';
-  const STORAGE_SEP_POS = 'ambient-ui-sep-pos';
   const STORAGE_TB_POS = 'ambient-ui-tb-pos';
-  const STORAGE_FEED_POS = 'ambient-ui-feed-pos';
-  const VIEWS = ['attached', 'separate', 'components', 'feed'];
+  // v2 — invalidates any stale `{x, y}` or off-screen positions from older
+  // builds so the Listener doesn't appear "missing" because it was pinned
+  // beyond the current viewport.
+  const STORAGE_LISTENER_POS = 'ambient-ui-listener-pos-v2';
+
+  // Drag + persistence is on. Listener uses right + bottom anchors so the
+  // wrap expands UPWARD on listen — controls + handle stay still.
+  const DRAG_ENABLED = true;
+
+  const STORAGE_BG = 'ambient-ui-bg';
+  const BG_OPTIONS = ['light', 'dark'];
+
+  const STORAGE_VARIANT = 'ambient-ui-variant';
+  // Wide = single-row horizontal layout (original).
+  // Compact = two-row layered layout with voice equaliser + floating counter.
+  const VARIANT_OPTIONS = ['wide', 'compact'];
 
   // Figma-extracted SVG symbols live in index.html (the static <defs> block
   // labelled "Figma-aligned symbols") so they're available on the
   // phone-mic page too — prototype.js short-circuits there.
 
-  // -------- 1. View switcher chip ----------------------------------------
+  // -------- 1. Chip — Components toggle ---------------------------------
+  // Single horizontal layout, no direction switching. The chip is now just
+  // a hop to the Components gallery and back.
   const chip = document.createElement('div');
   chip.className = 'proto-chip';
   chip.setAttribute('role', 'group');
-  chip.setAttribute('aria-label', 'UI direction');
+  chip.setAttribute('aria-label', 'Prototype view');
+  // Wide variant is hidden from the chip for now — focus is on Compact.
+  // Components gallery still shows both variants for design reference.
   chip.innerHTML = `
-    <span class="proto-chip__label">Direction</span>
-    <button class="proto-chip__btn" data-view="attached">Attached</button>
-    <button class="proto-chip__btn" data-view="separate">Separate</button>
-    <button class="proto-chip__btn" data-view="feed">Feed</button>
-    <button class="proto-chip__btn" data-view="components">Components</button>
+    <button class="proto-chip__btn" data-view-toggle="components">Components</button>
   `;
   document.body.appendChild(chip);
 
+  function setVariant(variant) {
+    if (!VARIANT_OPTIONS.includes(variant)) variant = 'wide';
+    document.body.classList.remove('variant-wide', 'variant-compact');
+    document.body.classList.add(`variant-${variant}`);
+    // Mirror the variant onto the listener element so the same CSS
+    // selectors work for live and for the gallery previews (which use
+    // the modifier class without the body context).
+    if (typeof listenerSurface !== 'undefined' && listenerSurface) {
+      listenerSurface.classList.remove('proto-listener--variant-wide', 'proto-listener--variant-compact');
+      listenerSurface.classList.add(`proto-listener--variant-${variant}`);
+    }
+    chip.querySelectorAll('[data-variant]').forEach((b) => {
+      b.classList.toggle('is-active', b.dataset.variant === variant);
+    });
+    try { localStorage.setItem(STORAGE_VARIANT, variant); } catch (e) {}
+  }
+
   function setView(view) {
-    if (!VIEWS.includes(view)) view = 'attached';
-    document.body.classList.remove('view-attached', 'view-separate', 'view-components', 'view-feed');
+    if (view !== 'components') view = 'listener';
+    document.body.classList.remove('view-components', 'view-listener');
     document.body.classList.add(`view-${view}`);
-    chip.querySelectorAll('[data-view]').forEach((b) => {
-      b.classList.toggle('is-active', b.dataset.view === view);
+    chip.querySelectorAll('[data-view-toggle]').forEach((b) => {
+      b.classList.toggle('is-active', view === 'components');
+      b.innerHTML = view === 'components'
+        ? '<svg class="proto-chip__arrow" viewBox="0 0 12 12" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" d="m7 3-3 3 3 3"/></svg><span>Back</span>'
+        : '<span>Components</span>';
     });
     try { localStorage.setItem(STORAGE_VIEW, view); } catch (e) {}
     if (typeof machine !== 'undefined' && machine.state === 'listening') startMeter();
+    if (typeof reconcileListenerPatientGate === 'function') reconcileListenerPatientGate();
   }
   chip.addEventListener('click', (e) => {
-    const btn = e.target.closest('[data-view]');
-    if (btn) setView(btn.dataset.view);
+    const variantBtn = e.target.closest('[data-variant]');
+    if (variantBtn) { setVariant(variantBtn.dataset.variant); return; }
+    const toggleBtn = e.target.closest('[data-view-toggle]');
+    if (toggleBtn) {
+      const onComponents = document.body.classList.contains('view-components');
+      setView(onComponents ? 'listener' : 'components');
+    }
   });
+
+  // -------- 1b. Background switcher (bottom-centre) ---------------------
+  // Two-state toggle between the default colourful mesh ("light") and a
+  // dark mesh that uses the same anchor colours so the Listener can be
+  // checked against both. Selection persists in localStorage.
+  const bgSwitch = document.createElement('div');
+  bgSwitch.className = 'proto-bg-switch';
+  bgSwitch.setAttribute('role', 'radiogroup');
+  bgSwitch.setAttribute('aria-label', 'Desktop background theme');
+  bgSwitch.innerHTML = `
+    <button class="proto-bg-switch__swatch proto-bg-switch__swatch--light" data-bg="light" aria-label="Light theme background"></button>
+    <button class="proto-bg-switch__swatch proto-bg-switch__swatch--dark"  data-bg="dark"  aria-label="Dark theme background"></button>
+  `;
+  document.body.appendChild(bgSwitch);
+
+  function setBg(name) {
+    if (!BG_OPTIONS.includes(name)) name = 'light';
+    document.body.classList.remove('bg-light', 'bg-dark');
+    document.body.classList.add(`bg-${name}`);
+    bgSwitch.querySelectorAll('[data-bg]').forEach((b) => {
+      b.classList.toggle('is-active', b.dataset.bg === name);
+    });
+    try { localStorage.setItem(STORAGE_BG, name); } catch (e) {}
+  }
+  bgSwitch.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-bg]');
+    if (btn) setBg(btn.dataset.bg);
+  });
+  try {
+    const savedBg = localStorage.getItem(STORAGE_BG);
+    setBg(savedBg && BG_OPTIONS.includes(savedBg) ? savedBg : 'light');
+  } catch (e) { setBg('light'); }
 
   // -------- 2. Replica toolbar (Figma Panel 2.0 + Ask) -------------------
   // Structure: a wrapper with the 4 buttons + 1 Menu, all 44×44 (Menu 52×44),
@@ -78,232 +149,144 @@
         <svg class="proto-tb-icon proto-tb-icon--menu"><use href="#fic-menu-cts"/></svg>
       </button>
       <div class="proto-tb-handle" role="button" tabindex="0" aria-label="Drag toolbar" title="Drag to move">
-        <span></span><span></span>
-        <span></span><span></span>
-        <span></span><span></span>
-        <span></span><span></span>
+        <svg class="proto-tb-grip" aria-hidden="true"><use href="#fic-grip-v"/></svg>
       </div>
     </div>
   `;
   toolbarWrap.appendChild(replicaToolbar);
 
-  // -------- 3. Ambient AI surface (unchanged from previous iteration) ----
-  function buildAiSurface(variant) {
+  // -------- 3. Feed surface (the only ambient surface) -------------------
+  // Structured ambient surface — single horizontal row: logo + transcript
+  // feed + risk counter + Pause + Stop pill + Mic settings + drag handle.
+  // Drag handle is the anchor: state changes grow/shrink the bar leftward
+  // while the handle stays put (see ensureListenerPositioned + listenerDrag*).
+  function buildListenerSurface() {
     const root = document.createElement('div');
-    root.className = `proto-ai proto-ai--${variant}`;
+    root.className = 'proto-listener';
     root.setAttribute('role', 'group');
-    root.setAttribute('aria-label', 'Ambient AI controls');
+    root.setAttribute('aria-label', 'C the Signs Listener');
     root.innerHTML = `
-      <div class="proto-ai__container">
-        <div class="proto-ai__row">
-          <button class="proto-ai__pill proto-ai__pause" type="button" data-proxy="tbPause" aria-label="Pause listening">
-            <svg class="proto-ai__ic"><use href="#fic-pause-sm"/></svg>
-          </button>
-          <button class="proto-ai__pill proto-ai__primary" type="button" data-proto-action="toggle" aria-label="Start listening">
-            <span class="proto-ai__rec" aria-hidden="true"></span>
-            <span class="proto-ai__primary-label">Start listening</span>
-            <span class="proto-ai__primary-meta" aria-hidden="true" hidden>0:00</span>
-          </button>
-        </div>
-        <div class="proto-ai__row proto-ai__row--device">
-          <div class="proto-ai__mic-row">
-            <svg class="proto-ai__ic" aria-hidden="true"><use href="#fic-mic-sm"/></svg>
-            <span class="proto-ai__device">Microphone</span>
-            <div class="proto-ai__meter" aria-hidden="true">
-              <span data-band="0"></span><span data-band="1"></span><span data-band="2"></span><span data-band="3"></span><span data-band="4"></span>
+      <div class="proto-listener__wrap">
+        <div class="proto-listener__container">
+          <!-- IDLE: combined Listen + Lang CTA (per Figma 13459:39419)
+               One purple-gradient capsule with two separate click areas:
+                 • Left half  → Listen (start session)
+                 • Right half → Language dropdown (EN/ES/UK)
+               Divided by a 2 px white-25% line. The settings gear sits
+               outside the CTA. Opening a patient still auto-starts the
+               session straight from idle. -->
+          <div class="proto-listener__idle">
+            <div class="proto-listener__cta">
+              <button class="proto-listener__cta-listen" type="button" data-proto-action="toggle" aria-label="Start listening">
+                <span class="proto-listener__listen-ic" aria-hidden="true"></span>
+                <span class="proto-listener__listen-label">Listen</span>
+              </button>
+              <span class="proto-listener__cta-divider" aria-hidden="true"></span>
+              <div class="proto-listener__lang" data-listener-action="lang-toggle">
+                <button class="proto-listener__cta-lang proto-listener__lang-btn" type="button" aria-haspopup="listbox" aria-expanded="false" aria-label="Patient language">
+                  <span class="proto-listener__lang-value">EN</span>
+                  <svg class="proto-listener__lang-chev" aria-hidden="true" viewBox="0 0 12 12">
+                    <path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" d="m3 5 3 3 3-3"/>
+                  </svg>
+                </button>
+                <div class="proto-listener__lang-menu" hidden role="listbox">
+                  <button class="proto-listener__lang-option" type="button" role="option" data-lang="en-GB">English</button>
+                  <button class="proto-listener__lang-option" type="button" role="option" data-lang="es-ES">Spanish</button>
+                  <button class="proto-listener__lang-option" type="button" role="option" data-lang="uk-UA">Ukrainian</button>
+                </div>
+              </div>
             </div>
           </div>
-          <button class="proto-ai__phone" type="button" data-proxy="tbPhone" aria-label="Use phone as microphone">
-            <svg class="proto-ai__ic"><use href="#fic-phone-sm"/></svg>
-          </button>
-        </div>
-      </div>
-      <div class="proto-ai__grip" role="button" tabindex="0" aria-label="Drag" title="Drag to move">
-        <svg class="proto-ai__ic"><use href="#fic-grip-v"/></svg>
-      </div>
-    `;
-    return root;
-  }
-
-  const aiAttached = buildAiSurface('attached');
-  const aiSeparate = buildAiSurface('separate');
-  toolbarWrap.appendChild(aiAttached);
-  document.body.appendChild(aiSeparate);
-
-  // -------- 3a. Feed surface (Direction = Feed) --------------------------
-  // Structured ambient surface with inline transcription feed + risk counter.
-  // Markup per Figma node 13443:6983. Lives inside #toolbarWrap so its
-  // position follows the same drag handle as the attached/replica toolbar.
-  function buildFeedSurface() {
-    const root = document.createElement('div');
-    root.className = 'proto-feed';
-    root.setAttribute('role', 'group');
-    root.setAttribute('aria-label', 'Ambient AI feed surface');
-    root.innerHTML = `
-      <div class="proto-feed__wrap">
-        <div class="proto-feed__container">
-          <!-- Compact idle row — visible only when state = idle -->
-          <div class="proto-feed__idle">
-            <button class="proto-feed__listen" type="button" data-proto-action="toggle" aria-label="Start listening">
-              <span class="proto-feed__rec-outline" aria-hidden="true"></span>
-              <span class="proto-feed__listen-label">Listen</span>
-            </button>
-            <button class="proto-feed__settings proto-feed__settings--idle" type="button" data-feed-action="mic-settings" aria-label="Microphone settings">
-              <svg class="proto-feed__ic"><use href="#fic-mic-settings-sm"/></svg>
-            </button>
-          </div>
-          <!-- Primer — shown right after patient opens. Confirms the patient's
-               language before recording, then offers Start session or Skip. -->
-          <div class="proto-feed__primer">
-            <div class="proto-feed__primer-row proto-feed__primer-row--lang">
-              <span class="proto-feed__primer-lead">Patient speaks</span>
-              <label class="proto-feed__primer-lang">
-                <svg class="proto-feed__primer-lang-ic" aria-hidden="true" viewBox="0 0 16 16">
-                  <path fill="currentColor" d="M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13Zm0 1.25c.79 0 1.65.84 2.27 2.36.18.44.33.93.46 1.44H5.27c.13-.51.28-1 .46-1.44C6.35 3.59 7.2 2.75 8 2.75Zm-3.5 3.8h-1.97A5.25 5.25 0 0 1 5.93 3.5c-.38.61-.7 1.38-.94 2.25-.12.42-.22.85-.29 1.3Zm6.78 0c-.07-.45-.17-.88-.29-1.3-.24-.87-.56-1.64-.94-2.25 1.4.54 2.55 1.62 3.18 3.05.05.16.11.32.16.5h-1.97c-.05-.18-.11-.36-.17-.53l.03.03Zm.83 1.45a5.25 5.25 0 0 1-.16 3h1.97a5.25 5.25 0 0 0 .53-3h-2.34Zm-1.43 0a13.6 13.6 0 0 1 .15 1.5c0 .52-.05 1.02-.15 1.5h-5.6a13.6 13.6 0 0 1-.15-1.5c0-.52.05-1.02.15-1.5h5.6Zm-7.03 0H1.31a5.25 5.25 0 0 0 .53 3h1.97a13.6 13.6 0 0 1-.16-3Zm.59 4.25H2.34a5.25 5.25 0 0 0 3.59 2.55 7 7 0 0 1-.94-2.25c-.05-.16-.11-.32-.16-.5l-.59.2Zm6.55 0c-.13.51-.28 1-.46 1.44C9.65 14.21 8.8 15 8 15s-1.65-.84-2.27-2.36a13.4 13.4 0 0 1-.46-1.44h5.46Zm-.59-1.45a5.25 5.25 0 0 1-.16 1.45h-5.13c-.08-.46-.13-.96-.16-1.45h5.45Z"/>
-                </svg>
-                <select class="proto-feed__primer-lang-select" data-feed-action="primer-lang" aria-label="Patient language">
-                  <option value="en-GB">English</option>
-                  <option value="es-ES">Spanish</option>
-                  <option value="uk-UA">Ukrainian</option>
-                </select>
-                <svg class="proto-feed__primer-lang-chev" aria-hidden="true" viewBox="0 0 12 12">
-                  <path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" d="m3 5 3 3 3-3"/>
-                </svg>
-              </label>
-            </div>
-            <div class="proto-feed__primer-row proto-feed__primer-row--actions">
-              <button class="proto-feed__primer-start" type="button" data-feed-action="start-session" aria-label="Start session">
-                <span class="proto-feed__rec-outline" aria-hidden="true"></span>
-                <span>Start session</span>
-              </button>
-              <button class="proto-feed__primer-skip" type="button" data-feed-action="skip-session" aria-label="Skip — no recording for this patient">
-                Skip
-              </button>
-              <button class="proto-feed__settings" type="button" data-feed-action="mic-settings" aria-label="Microphone settings">
-                <svg class="proto-feed__ic"><use href="#fic-mic-settings-sm"/></svg>
-              </button>
-            </div>
-          </div>
-          <!-- Active rows — visible only when state = listening/paused/stopping -->
-          <div class="proto-feed__active">
-            <button class="proto-feed__session" type="button" data-feed-action="open-summary" title="Open summary · pauses session">
-              <span class="proto-feed__logo proto-feed__logo--lg" aria-hidden="true">
+          <!-- ACTIVE: status button (transcript + counter) + controls (no mic settings here — see persistent button below) -->
+          <div class="proto-listener__active">
+            <button class="proto-listener__session" type="button" data-listener-action="open-summary" data-tooltip="AI transcript">
+              <span class="proto-listener__logo proto-listener__logo--lg" aria-hidden="true">
                 <svg viewBox="0 0 28 28"><use href="#fic-menu-cts"/></svg>
               </span>
-              <span class="proto-feed__transcript">
-                <span class="proto-feed__transcript-text" aria-live="polite"></span>
-                <span class="proto-feed__status-label proto-feed__status-label--listening">Listening…</span>
-                <span class="proto-feed__status-label proto-feed__status-label--paused">Paused</span>
+              <!-- Voice equaliser — used in the Expanded variant. 5 bars
+                   animate when listening; in Paused they freeze in a
+                   "--II-" pattern that reads as a pause icon. -->
+              <span class="proto-listener__bars" aria-hidden="true">
+                <span></span><span></span><span></span><span></span><span></span>
               </span>
-              <span class="proto-feed__counter proto-feed__counter--empty" aria-label="Risk factor count"></span>
+              <span class="proto-listener__transcript">
+                <span class="proto-listener__transcript-text" aria-live="polite"></span>
+                <span class="proto-listener__status-label proto-listener__status-label--listening">Listening…</span>
+                <span class="proto-listener__status-label proto-listener__status-label--paused">Paused</span>
+              </span>
+              <span class="proto-listener__counter proto-listener__counter--empty" aria-label="Risk factors detected" data-tooltip="Cancer risk factors detected"></span>
             </button>
-            <div class="proto-feed__controls">
-              <button class="proto-feed__pause" type="button" data-proxy="tbPause" aria-label="Pause listening">
-                <svg class="proto-feed__ic"><use href="#fic-pause-sm"/></svg>
+            <div class="proto-listener__controls">
+              <!-- LISTENING: Pause icon. Hidden in paused. -->
+              <button class="proto-listener__pause" type="button" data-proxy="tbPause" aria-label="Pause listening" data-tooltip="Pause">
+                <svg class="proto-listener__ic"><use href="#fic-pause-sm"/></svg>
               </button>
-              <button class="proto-feed__primary" type="button" data-proto-action="toggle" aria-label="Stop listening">
-                <svg class="proto-feed__primary-ic proto-feed__primary-ic--stop"><use href="#fic-stop-sm"/></svg>
-                <span class="proto-feed__primary-rec proto-feed__primary-rec--ring" aria-hidden="true"></span>
-                <span class="proto-feed__primary-label">Stop</span>
-                <span class="proto-feed__primary-time">0:00</span>
+              <!-- Primary pill — morphs between "Stop" (listening) and
+                   "Resume" (paused). Same element so the transition is
+                   smooth — only icon + label spans swap. -->
+              <button class="proto-listener__primary" type="button" data-proto-action="toggle" aria-label="Stop listening">
+                <svg class="proto-listener__primary-ic proto-listener__primary-ic--stop"><use href="#fic-stop-sm"/></svg>
+                <span class="proto-listener__primary-rec" aria-hidden="true"></span>
+                <span class="proto-listener__primary-label proto-listener__primary-label--stop">Stop</span>
+                <span class="proto-listener__primary-label proto-listener__primary-label--resume">Resume</span>
+                <span class="proto-listener__primary-time">0:00</span>
               </button>
-              <button class="proto-feed__stop-paused" type="button" data-feed-action="stop" aria-label="End session">
-                <svg class="proto-feed__ic"><use href="#fic-stop-sm"/></svg>
-              </button>
-              <button class="proto-feed__settings" type="button" data-feed-action="mic-settings" aria-label="Microphone settings">
-                <svg class="proto-feed__ic"><use href="#fic-mic-settings-sm"/></svg>
+              <!-- PAUSED: icon-only Stop (ends the session). Hidden in listening. -->
+              <button class="proto-listener__stop-paused" type="button" data-listener-action="stop" aria-label="End session" data-tooltip="End session">
+                <svg class="proto-listener__ic"><use href="#fic-stop-sm"/></svg>
               </button>
             </div>
           </div>
         </div>
-        <div class="proto-feed__handle" role="button" tabindex="0" aria-label="Drag" title="Drag to move">
-          <svg class="proto-feed__ic"><use href="#fic-grip-v"/></svg>
+        <!-- PERSISTENT mic settings — bottom-aligned, shared across idle/active.
+             Sitting outside both row containers means the same DOM element
+             stays in place as the bar morphs between states, so the gear
+             icon never visually shifts relative to the drag handle. -->
+        <button class="proto-listener__settings" type="button" data-listener-action="mic-settings" aria-label="Microphone settings" data-tooltip="Microphone settings">
+          <svg class="proto-listener__ic"><use href="#fic-mic-settings-sm"/></svg>
+        </button>
+        <div class="proto-listener__handle" role="button" tabindex="0" aria-label="Drag" data-tooltip="Drag to move">
+          <svg class="proto-listener__ic"><use href="#fic-grip-v"/></svg>
         </div>
       </div>
 
       <!-- Mic Settings popover — anchored below the gear button -->
-      <div class="proto-feed__popover" hidden role="menu" aria-label="Microphone settings">
-        <div class="proto-feed__pop-issue" hidden>
+      <div class="proto-listener__popover" hidden role="menu" aria-label="Microphone settings">
+        <div class="proto-listener__pop-issue" hidden>
           <span>Microphone is blocked — open browser settings to enable</span>
         </div>
-        <div class="proto-feed__pop-section">Microphone</div>
-        <button class="proto-feed__pop-device proto-feed__pop-device--active" type="button" data-feed-device="device-1">
-          <svg class="proto-feed__pop-check"><use href="#fic-check-sm"/></svg>
-          <span class="proto-feed__pop-device-name">Chromebook Microphone</span>
-          <span class="proto-feed__pop-meter" aria-hidden="true">
-            <span data-feed-band="0"></span><span data-feed-band="1"></span><span data-feed-band="2"></span><span data-feed-band="3"></span><span data-feed-band="4"></span>
+        <div class="proto-listener__pop-section">Microphone</div>
+        <button class="proto-listener__pop-device proto-listener__pop-device--active" type="button" data-listener-device="device-1">
+          <svg class="proto-listener__pop-check"><use href="#fic-check-sm"/></svg>
+          <span class="proto-listener__pop-device-name">Chromebook Microphone</span>
+          <span class="proto-listener__pop-meter" aria-hidden="true">
+            <span data-listener-band="0"></span><span data-listener-band="1"></span><span data-listener-band="2"></span><span data-listener-band="3"></span><span data-listener-band="4"></span>
           </span>
         </button>
-        <button class="proto-feed__pop-device" type="button" data-feed-device="device-2">
-          <span class="proto-feed__pop-check proto-feed__pop-check--placeholder"></span>
-          <span class="proto-feed__pop-device-name">Microsoft Teams Audio Device</span>
+        <button class="proto-listener__pop-device" type="button" data-listener-device="device-2">
+          <span class="proto-listener__pop-check proto-listener__pop-check--placeholder"></span>
+          <span class="proto-listener__pop-device-name">Microsoft Teams Audio Device</span>
         </button>
-        <div class="proto-feed__pop-section">Use your phone</div>
-        <button class="proto-feed__pop-action" type="button" data-proxy="tbPhone">
-          <svg class="proto-feed__pop-icon"><use href="#fic-phone-sm"/></svg>
-          <span class="proto-feed__pop-device-name">Connect with QR code</span>
+        <div class="proto-listener__pop-section">Use your phone</div>
+        <button class="proto-listener__pop-action" type="button" data-proxy="tbPhone">
+          <svg class="proto-listener__pop-icon"><use href="#fic-phone-sm"/></svg>
+          <span class="proto-listener__pop-device-name">Connect with QR code</span>
         </button>
       </div>
     `;
     return root;
   }
 
-  const feedSurface = buildFeedSurface();
-  toolbarWrap.appendChild(feedSurface);
+  const listenerSurface = buildListenerSurface();
+  // Lives on body (not inside toolbarWrap) so it drags independently of the
+  // replica toolbar. In Feed direction both elements are visible — Toolbar
+  // and Ambient controls are two separate, individually-draggable surfaces.
+  document.body.appendChild(listenerSurface);
 
-  // -------- 3b. Components gallery (Direction = Components) --------------
+  // -------- 3b. Components gallery (view = components) ------------------
   // Non-interactive showcase of the main building blocks. Each card holds a
   // freshly-built static representation — IDs stripped so they don't clash
   // with the live UI above. Buttons inside the cards are not wired up.
-  function buildAiPreview(variant, opts = {}) {
-    // Same markup as buildAiSurface but with display-state classes baked in
-    // (no live state machine). `opts.state` controls what's shown.
-    const state = opts.state || 'idle'; // idle | listening | paused
-    const meta = state !== 'idle' ? `<span class="proto-ai__primary-meta">${opts.timer || '0:00'}</span>` : '';
-    const label = state === 'listening' ? 'Stop listening'
-                : state === 'paused'    ? 'Resume listening'
-                : 'Start listening';
-    const showPause = state === 'listening' ? 'inline-flex' : 'none';
-    const recState = state === 'listening' ? 'is-rec-on is-rec-breath'
-                   : state === 'paused'    ? 'is-rec-on'
-                   : '';
-    const barHeights = state === 'listening' ? [9, 13, 5, 8, 6]
-                     : state === 'paused'    ? [9, 13, 5, 8, 6]
-                     : [3, 3, 3, 3, 3];
-    const barOpacity = state === 'idle' ? '0' : '1';
-    const barColor = state === 'paused' ? '#B0AC97' : '#5CA246';
-
-    return `
-      <div class="proto-ai proto-ai--${variant} proto-ai--preview">
-        <div class="proto-ai__container">
-          <div class="proto-ai__row">
-            <button class="proto-ai__pill proto-ai__pause" style="display:${showPause}">
-              <svg class="proto-ai__ic"><use href="#fic-pause-sm"/></svg>
-            </button>
-            <button class="proto-ai__pill proto-ai__primary">
-              <span class="proto-ai__rec ${recState}"></span>
-              <span class="proto-ai__primary-label">${label}</span>
-              ${meta}
-            </button>
-            ${variant === 'separate' ? `<div class="proto-ai__grip"><svg class="proto-ai__ic"><use href="#fic-grip-v"/></svg></div>` : ''}
-          </div>
-          <div class="proto-ai__row proto-ai__row--device">
-            <div class="proto-ai__mic-row">
-              <svg class="proto-ai__ic"><use href="#fic-mic-sm"/></svg>
-              <span class="proto-ai__device">Microphone</span>
-              <div class="proto-ai__meter">
-                ${barHeights.map((h, i) => `<span data-band="${i}" style="height:${h}px;opacity:${barOpacity};background:${barColor}"></span>`).join('')}
-              </div>
-            </div>
-            <button class="proto-ai__phone">
-              <svg class="proto-ai__ic"><use href="#fic-phone-sm"/></svg>
-            </button>
-          </div>
-        </div>
-      </div>
-    `;
-  }
-
   function buildToolbarPreview() {
     return `
       <div class="proto-toolbar proto-toolbar--preview">
@@ -318,15 +301,15 @@
             <svg class="proto-tb-icon proto-tb-icon--menu"><use href="#fic-menu-cts"/></svg>
           </button>
           <div class="proto-tb-handle">
-            <span></span><span></span><span></span><span></span>
-            <span></span><span></span><span></span><span></span>
+            <svg class="proto-tb-grip" aria-hidden="true"><use href="#fic-grip-v"/></svg>
           </div>
         </div>
       </div>
     `;
   }
 
-  function buildFeedPreview(state, opts = {}) {
+  function buildListenerPreview(state, opts = {}) {
+    const variant = opts.variant || 'wide';
     // Static rendering of the Feed surface in a given state — no event
     // handlers, no observers. The `--state-*` modifier classes opt into
     // the per-state CSS variants without relying on the body's state class.
@@ -334,88 +317,72 @@
     const count = opts.count != null ? opts.count : 0;
     const time = opts.time || '0:00';
     const isHigh = count >= 3;
-    const counterClass = count <= 0 ? 'proto-feed__counter--empty' : (isHigh ? 'is-high' : '');
+    const counterClass = count <= 0 ? 'proto-listener__counter--empty' : (isHigh ? 'is-high' : '');
     const counterText = count <= 0 ? '0' : (count >= 100 ? '99+' : String(count));
 
     const idleBody = `
-      <div class="proto-feed__idle" style="display: flex;">
-        <button class="proto-feed__listen" type="button">
-          <span class="proto-feed__rec-outline"></span>
-          <span class="proto-feed__listen-label">Listen</span>
-        </button>
-        <button class="proto-feed__settings" type="button">
-          <svg class="proto-feed__ic"><use href="#fic-mic-settings-sm"/></svg>
-        </button>
-      </div>
-    `;
-
-    const primerBody = `
-      <div class="proto-feed__primer" style="display: flex; flex-direction: column; gap: 6px;">
-        <div class="proto-feed__primer-row proto-feed__primer-row--lang">
-          <span class="proto-feed__primer-lead">Patient speaks</span>
-          <label class="proto-feed__primer-lang">
-            <svg class="proto-feed__primer-lang-ic" viewBox="0 0 16 16">
-              <path fill="currentColor" d="M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13Zm0 1.25c.79 0 1.65.84 2.27 2.36.18.44.33.93.46 1.44H5.27c.13-.51.28-1 .46-1.44C6.35 3.59 7.2 2.75 8 2.75Zm-3.5 3.8h-1.97A5.25 5.25 0 0 1 5.93 3.5c-.38.61-.7 1.38-.94 2.25-.12.42-.22.85-.29 1.3Zm6.78 0c-.07-.45-.17-.88-.29-1.3-.24-.87-.56-1.64-.94-2.25 1.4.54 2.55 1.62 3.18 3.05.05.16.11.32.16.5h-1.97c-.05-.18-.11-.36-.17-.53l.03.03Zm.83 1.45a5.25 5.25 0 0 1-.16 3h1.97a5.25 5.25 0 0 0 .53-3h-2.34Zm-1.43 0a13.6 13.6 0 0 1 .15 1.5c0 .52-.05 1.02-.15 1.5h-5.6a13.6 13.6 0 0 1-.15-1.5c0-.52.05-1.02.15-1.5h5.6Zm-7.03 0H1.31a5.25 5.25 0 0 0 .53 3h1.97a13.6 13.6 0 0 1-.16-3Zm.59 4.25H2.34a5.25 5.25 0 0 0 3.59 2.55 7 7 0 0 1-.94-2.25c-.05-.16-.11-.32-.16-.5l-.59.2Zm6.55 0c-.13.51-.28 1-.46 1.44C9.65 14.21 8.8 15 8 15s-1.65-.84-2.27-2.36a13.4 13.4 0 0 1-.46-1.44h5.46Zm-.59-1.45a5.25 5.25 0 0 1-.16 1.45h-5.13c-.08-.46-.13-.96-.16-1.45h5.45Z"/>
-            </svg>
-            <select class="proto-feed__primer-lang-select" disabled>
-              <option>English</option>
-            </select>
-            <svg class="proto-feed__primer-lang-chev" viewBox="0 0 12 12">
-              <path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" d="m3 5 3 3 3-3"/>
-            </svg>
-          </label>
-        </div>
-        <div class="proto-feed__primer-row proto-feed__primer-row--actions">
-          <button class="proto-feed__primer-start" type="button">
-            <span class="proto-feed__rec-outline"></span>
-            <span>Start session</span>
+      <div class="proto-listener__idle" style="display: flex;">
+        <div class="proto-listener__cta">
+          <button class="proto-listener__cta-listen" type="button" tabindex="-1">
+            <span class="proto-listener__listen-ic" aria-hidden="true"></span>
+            <span class="proto-listener__listen-label">Listen</span>
           </button>
-          <button class="proto-feed__primer-skip" type="button">Skip</button>
-          <button class="proto-feed__settings" type="button">
-            <svg class="proto-feed__ic"><use href="#fic-mic-settings-sm"/></svg>
-          </button>
+          <span class="proto-listener__cta-divider" aria-hidden="true"></span>
+          <div class="proto-listener__lang">
+            <button class="proto-listener__cta-lang proto-listener__lang-btn" type="button" aria-expanded="false" tabindex="-1">
+              <span class="proto-listener__lang-value">EN</span>
+              <svg class="proto-listener__lang-chev" aria-hidden="true" viewBox="0 0 12 12">
+                <path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" d="m3 5 3 3 3-3"/>
+              </svg>
+            </button>
+          </div>
         </div>
       </div>
     `;
 
     const activeBody = (s) => {
-      const showPause = s === 'listening';
-      const showStopPaused = s === 'paused';
-      const primaryLabel = s === 'paused' ? 'Listen' : 'Stop';
-      const primaryIcStop = s === 'paused' ? 'display:none' : '';
-      const primaryRec = s === 'paused' ? 'display:inline-block' : 'display:none';
-      const statusLabel = s === 'listening'
-        ? '<span class="proto-feed__status-label proto-feed__status-label--listening" style="display:flex">Listening…</span>'
-        : '<span class="proto-feed__status-label proto-feed__status-label--paused" style="display:flex; background:transparent; padding-right:0;">Paused</span>';
-      const transcriptDisplay = s === 'paused' ? 'none' : 'flex';
+      const isPaused = s === 'paused';
+      const statusLabel = !isPaused
+        ? '<span class="proto-listener__status-label proto-listener__status-label--listening" style="display:flex">Listening…</span>'
+        : '<span class="proto-listener__status-label proto-listener__status-label--paused" style="display:flex; background:transparent; padding-right:0;">Paused</span>';
+      const transcriptDisplay = isPaused ? 'none' : 'flex';
+      // Listening: Pause icon visible, Stop pill primary, stop-paused hidden.
+      // Paused: Pause icon hidden, Resume pill primary (record-outline + "Resume"), stop-paused (icon) visible.
+      const pauseDisplay = isPaused ? 'none' : 'inline-flex';
+      const stopPausedDisplay = isPaused ? 'inline-flex' : 'none';
+      const stopIcDisplay = isPaused ? 'none' : 'inline-flex';
+      const recDisplay = isPaused ? 'inline-block' : 'none';
+      const stopLabelDisplay = isPaused ? 'none' : 'inline-flex';
+      const resumeLabelDisplay = isPaused ? 'inline-flex' : 'none';
 
       return `
-        <div class="proto-feed__active" style="display: flex; flex-direction: column; gap: 6px;">
-          <button class="proto-feed__session" type="button">
-            <span class="proto-feed__logo proto-feed__logo--lg" aria-hidden="true">
+        <div class="proto-listener__active" style="display: flex; flex-direction: row; align-items: center; gap: 4px;">
+          <button class="proto-listener__session" type="button" tabindex="-1">
+            <span class="proto-listener__logo proto-listener__logo--lg" aria-hidden="true">
               <svg viewBox="0 0 28 28"><use href="#fic-menu-cts"/></svg>
             </span>
-            <span class="proto-feed__transcript">
-              <span class="proto-feed__transcript-text" style="display:${transcriptDisplay}">${transcript}</span>
+            <span class="proto-listener__bars" aria-hidden="true">
+              <span></span><span></span><span></span><span></span><span></span>
+            </span>
+            <span class="proto-listener__transcript">
+              <span class="proto-listener__transcript-text" style="display:${transcriptDisplay}">${transcript}</span>
               ${statusLabel}
             </span>
-            <span class="proto-feed__counter ${counterClass}">${counterText}</span>
+            <span class="proto-listener__counter ${counterClass}">${counterText}</span>
           </button>
-          <div class="proto-feed__controls">
-            <button class="proto-feed__pause" type="button" style="display:${showPause ? 'inline-flex' : 'none'}">
-              <svg class="proto-feed__ic"><use href="#fic-pause-sm"/></svg>
+          <div class="proto-listener__controls">
+            <button class="proto-listener__pause" type="button" tabindex="-1" style="display:${pauseDisplay}">
+              <svg class="proto-listener__ic"><use href="#fic-pause-sm"/></svg>
             </button>
-            <button class="proto-feed__primary" type="button">
-              <svg class="proto-feed__primary-ic proto-feed__primary-ic--stop" style="${primaryIcStop}"><use href="#fic-stop-sm"/></svg>
-              <span class="proto-feed__primary-rec" style="${primaryRec}"></span>
-              <span class="proto-feed__primary-label">${primaryLabel}</span>
-              <span class="proto-feed__primary-time">${time}</span>
+            <button class="proto-listener__primary" type="button" tabindex="-1">
+              <svg class="proto-listener__primary-ic proto-listener__primary-ic--stop" style="display:${stopIcDisplay}"><use href="#fic-stop-sm"/></svg>
+              <span class="proto-listener__primary-rec" style="display:${recDisplay}"></span>
+              <span class="proto-listener__primary-label proto-listener__primary-label--stop" style="display:${stopLabelDisplay}">Stop</span>
+              <span class="proto-listener__primary-label proto-listener__primary-label--resume" style="display:${resumeLabelDisplay}">Resume</span>
+              <span class="proto-listener__primary-time">${time}</span>
             </button>
-            <button class="proto-feed__stop-paused" type="button" style="display:${showStopPaused ? 'inline-flex' : 'none'}">
-              <svg class="proto-feed__ic"><use href="#fic-stop-sm"/></svg>
-            </button>
-            <button class="proto-feed__settings" type="button">
-              <svg class="proto-feed__ic"><use href="#fic-mic-settings-sm"/></svg>
+            <button class="proto-listener__stop-paused" type="button" tabindex="-1" style="display:${stopPausedDisplay}">
+              <svg class="proto-listener__ic"><use href="#fic-stop-sm"/></svg>
             </button>
           </div>
         </div>
@@ -424,17 +391,19 @@
 
     let body;
     if (state === 'idle') body = idleBody;
-    else if (state === 'primer') body = primerBody;
     else body = activeBody(state);
 
     return `
-      <div class="proto-feed proto-feed--preview proto-feed--state-${state}">
-        <div class="proto-feed__wrap">
-          <div class="proto-feed__container">
+      <div class="proto-listener proto-listener--preview proto-listener--variant-${variant} proto-listener--state-${state}" data-state="${state}">
+        <div class="proto-listener__wrap">
+          <div class="proto-listener__container">
             ${body}
           </div>
-          <div class="proto-feed__handle">
-            <svg class="proto-feed__ic"><use href="#fic-grip-v"/></svg>
+          <button class="proto-listener__settings" type="button" tabindex="-1">
+            <svg class="proto-listener__ic"><use href="#fic-mic-settings-sm"/></svg>
+          </button>
+          <div class="proto-listener__handle">
+            <svg class="proto-listener__ic"><use href="#fic-grip-v"/></svg>
           </div>
         </div>
       </div>
@@ -467,79 +436,77 @@
 
       <article class="proto-comp">
         <header class="proto-comp__head">
-          <h2>Ambient AI bar — Attached</h2>
-          <p>Docks flush under the toolbar when a patient is open. Same width as the toolbar.</p>
-        </header>
-        <div class="proto-comp__stage proto-comp__stage--ai">
-          <div class="proto-comp__ai-row">
-            <div class="proto-comp__ai-cell">
-              <span class="proto-comp__caption">Idle</span>
-              ${buildAiPreview('attached', { state: 'idle' })}
-            </div>
-            <div class="proto-comp__ai-cell">
-              <span class="proto-comp__caption">Listening</span>
-              ${buildAiPreview('attached', { state: 'listening', timer: '4:18' })}
-            </div>
-            <div class="proto-comp__ai-cell">
-              <span class="proto-comp__caption">Paused</span>
-              ${buildAiPreview('attached', { state: 'paused', timer: '4:18' })}
-            </div>
-          </div>
-        </div>
-        <footer class="proto-comp__foot">
-          <p><strong>States:</strong> idle · starting (300 ms) · listening (breathing) · paused (frozen) · stopping (300 ms fade).</p>
-        </footer>
-      </article>
-
-      <article class="proto-comp">
-        <header class="proto-comp__head">
-          <h2>Ambient AI bar — Separate</h2>
-          <p>Independent floating bar. Always visible. Has its own drag grip on the right.</p>
-        </header>
-        <div class="proto-comp__stage proto-comp__stage--ai">
-          <div class="proto-comp__ai-row">
-            <div class="proto-comp__ai-cell">
-              <span class="proto-comp__caption">Idle</span>
-              ${buildAiPreview('separate', { state: 'idle' })}
-            </div>
-            <div class="proto-comp__ai-cell">
-              <span class="proto-comp__caption">Listening</span>
-              ${buildAiPreview('separate', { state: 'listening', timer: '4:18' })}
-            </div>
-          </div>
-        </div>
-        <footer class="proto-comp__foot">
-          <p>Drag the grip on the right to reposition. Position persists across reloads.</p>
-        </footer>
-      </article>
-
-      <article class="proto-comp">
-        <header class="proto-comp__head">
-          <h2>Ambient AI — Feed</h2>
-          <p>Structured surface with inline transcription, risk-factor counter, and dedicated mic-settings popover. Sits on a translucent dark wrap. Four states: idle, primer (Open patient prompt), listening, paused.</p>
+          <h2>Listener — Wide</h2>
+          <p>Single-row horizontal layout. Status, controls and counter all sit in one line: <strong>Logo · Listening/Paused · Transcript · Counter · Pause · Stop · Mic settings</strong>. Idle uses the combined purple Listen + Lang CTA.</p>
         </header>
         <div class="proto-comp__stage proto-comp__stage--feed">
           <div class="proto-comp__feed-row">
             <div class="proto-comp__feed-cell">
               <span class="proto-comp__caption">Idle</span>
-              ${buildFeedPreview('idle')}
-            </div>
-            <div class="proto-comp__feed-cell">
-              <span class="proto-comp__caption">Primer (patient just opened)</span>
-              ${buildFeedPreview('primer')}
+              ${buildListenerPreview('idle', { variant: 'wide' })}
             </div>
             <div class="proto-comp__feed-cell">
               <span class="proto-comp__caption">Listening</span>
-              ${buildFeedPreview('listening', { transcript: 'abdominal uh like in the stomach', count: 3, time: '4:18' })}
+              ${buildListenerPreview('listening', { variant: 'wide', transcript: 'abdominal uh like in the stomach', count: 3, time: '4:18' })}
             </div>
             <div class="proto-comp__feed-cell">
               <span class="proto-comp__caption">Paused</span>
-              ${buildFeedPreview('paused', { count: 3, time: '4:18' })}
+              ${buildListenerPreview('paused', { variant: 'wide', count: 3, time: '4:18' })}
             </div>
           </div>
         </div>
         <footer class="proto-comp__foot">
-          <p><strong>States:</strong> idle (compact Listen pill) · primer (Start session / Skip) · listening (transcript flows + counter live) · paused (status + counter, controls swap to Resume / Stop / Settings) · starting / stopping are short transitions, not separately rendered.</p>
+          <p>Wide is the default; the right edge stays pinned across state morphs so the drag handle and Mic Settings don't move.</p>
+        </footer>
+      </article>
+
+      <article class="proto-comp">
+        <header class="proto-comp__head">
+          <h2>Listener — Compact</h2>
+          <p>Two-row layered build. Status row (voice equaliser + label + transcript with edge-mask) sits transparent on the dark wrap; control row below holds the Pause / Resume + Stop + Mic settings. <strong>Risk counter floats outside the wrap</strong> as a notification badge — the status row never resizes. On Paused the equaliser freezes into a "--II-" pause-icon pattern.</p>
+        </header>
+        <div class="proto-comp__stage proto-comp__stage--feed">
+          <div class="proto-comp__feed-row">
+            <div class="proto-comp__feed-cell">
+              <span class="proto-comp__caption">Idle</span>
+              ${buildListenerPreview('idle', { variant: 'compact' })}
+            </div>
+            <div class="proto-comp__feed-cell">
+              <span class="proto-comp__caption">Listening</span>
+              ${buildListenerPreview('listening', { variant: 'compact', transcript: 'and some text that listen', count: 3, time: '4:18' })}
+            </div>
+            <div class="proto-comp__feed-cell">
+              <span class="proto-comp__caption">Paused</span>
+              ${buildListenerPreview('paused', { variant: 'compact', transcript: 'and some text that listen', count: 1, time: '1:21' })}
+            </div>
+            <div class="proto-comp__feed-cell">
+              <span class="proto-comp__caption">Mic Settings menu</span>
+              <div class="proto-listener proto-listener--preview proto-listener--menu-preview">
+                <div class="proto-listener__popover proto-listener__popover--inline" role="menu" aria-label="Microphone settings">
+                  <div class="proto-listener__pop-section">Microphone</div>
+                  <button class="proto-listener__pop-device proto-listener__pop-device--active" type="button">
+                    <svg class="proto-listener__pop-check"><use href="#fic-check-sm"/></svg>
+                    <span class="proto-listener__pop-device-name">Chromebook Microphone</span>
+                    <span class="proto-listener__pop-meter" aria-hidden="true">
+                      <span data-listener-band="0"></span><span data-listener-band="1"></span><span data-listener-band="2"></span><span data-listener-band="3"></span><span data-listener-band="4"></span>
+                    </span>
+                  </button>
+                  <button class="proto-listener__pop-device" type="button">
+                    <span class="proto-listener__pop-check proto-listener__pop-check--placeholder"></span>
+                    <span class="proto-listener__pop-device-name">Microsoft Teams Audio Device</span>
+                  </button>
+                  <div class="proto-listener__pop-section">Use your phone</div>
+                  <button class="proto-listener__pop-action" type="button">
+                    <svg class="proto-listener__pop-icon"><use href="#fic-phone-sm"/></svg>
+                    <span class="proto-listener__pop-device-name">Connect with QR code</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <footer class="proto-comp__foot">
+          <p>Drag handle on the right side anchors the bar — state changes resize the bar leftward so the handle stays in place. Mic Settings menu opens from the gear icon and lets the clinician switch microphone or connect their phone as the source.</p>
         </footer>
       </article>
 
@@ -694,102 +661,6 @@
         </footer>
       </article>
 
-      <article class="proto-comp">
-        <header class="proto-comp__head">
-          <h2>Mobile mic page</h2>
-          <p>Phone-side capture screen reached by scanning the QR in the Phone Connection modal. URL contains <code>?mic=&lt;peer-id&gt;</code>.</p>
-        </header>
-        <div class="proto-comp__stage proto-comp__stage--phone">
-          <div class="proto-phone-frame">
-            <div class="proto-phone-frame__notch"></div>
-            <div class="proto-phone-frame__screen">
-              <div class="mobile-mic proto-mobile-mic--preview">
-                <div class="mm-header">
-                  <svg class="ic ic--lg mm-logo-ic"><use href="#fic-menu-cts"/></svg>
-                  <strong>C the Signs — Ambient AI</strong>
-                </div>
-                <div class="mm-status">
-                  <span class="dot dot--connected"></span>
-                  <span>Connected to laptop</span>
-                </div>
-                <div class="mm-mic-area">
-                  <button class="mm-mic-btn">
-                    <svg class="ic ic--xl mm-mic-ic"><use href="#fic-mic-sm"/></svg>
-                    <span>Tap to listen</span>
-                  </button>
-                </div>
-                <div class="mm-transcript">
-                  <span class="muted">Transcript appears here as you speak.</span>
-                </div>
-                <p class="mm-footnote">Audio stays on this phone. Only the transcribed text is sent to the laptop.</p>
-              </div>
-            </div>
-          </div>
-        </div>
-        <footer class="proto-comp__foot">
-          <p>Full-screen page when active. Container above is for preview only — the real page fills the whole viewport.</p>
-        </footer>
-      </article>
-
-      <article class="proto-comp">
-        <header class="proto-comp__head">
-          <h2>Status pill (dev utility)</h2>
-          <p>PoC-only control surface: transcript toggle, "New patient open" simulation, language picker, STT status line. Will not ship to production.</p>
-        </header>
-        <div class="proto-comp__stage proto-comp__stage--util">
-          <div class="proto-comp__status-pill">
-            <div class="status-pill-row">
-              <span class="status-feature">
-                <svg class="ic ic--sm"><use href="#ic-sparkles"/></svg>
-                Ambient AI <span class="poc-tag">PoC</span>
-              </span>
-              <span class="lang-picker-wrap">
-                <label class="lang-label">Patient speaks:</label>
-                <select class="lang-picker" disabled>
-                  <option>English</option>
-                </select>
-              </span>
-            </div>
-            <div class="status-pill-row status-pill-actions">
-              <button class="btn btn--ghost">Show transcript</button>
-              <button class="btn btn--primary">
-                <svg class="ic ic--sm"><use href="#ic-user-plus"/></svg>
-                New patient open
-              </button>
-            </div>
-            <div class="status-pill-note">Web Speech API ready · Click the mic button to begin</div>
-          </div>
-        </div>
-        <footer class="proto-comp__foot">
-          <p>Top-left of the viewport. Hidden in the Components direction.</p>
-        </footer>
-      </article>
-
-      <article class="proto-comp">
-        <header class="proto-comp__head">
-          <h2>Notification card</h2>
-          <p>Floats below the Patient button when detections come in. "Risk assess", "Details", "Hide" actions.</p>
-        </header>
-        <div class="proto-comp__stage proto-comp__stage--util">
-          <div class="proto-comp__notif">
-            <div class="notif-body">
-              <div class="notif-badge">3</div>
-              <div class="notif-content">
-                <div class="notif-title">3 risk factors detected</div>
-                <div class="notif-sub">Latest: Persistent cough · from the consultation</div>
-                <div class="notif-actions">
-                  <button class="link link--primary">Risk assess</button>
-                  <button class="link">Details</button>
-                  <button class="link">Hide</button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-        <footer class="proto-comp__foot">
-          <p>Currently lives at <code>.notif</code> in <code>index.html</code>.</p>
-        </footer>
-      </article>
     `;
     return root;
   }
@@ -817,7 +688,7 @@
   const tbPhone = document.getElementById('tbPhone');
   const listenChip = document.getElementById('listenChip');
 
-  const RECORDING_STATES = ['idle', 'primer', 'starting', 'listening', 'paused', 'stopping'];
+  const RECORDING_STATES = ['idle', 'starting', 'listening', 'paused', 'stopping'];
   const TRANSITION_MS = 180;
   const LABELS = {
     idle:      'Start listening',
@@ -892,6 +763,12 @@
       RECORDING_STATES.forEach((s) => {
         document.body.classList.toggle(`proto-${s}`, s === next);
       });
+      // Mirror machine state onto the listener element via data-state so
+      // variant CSS rules can target a single source for both live and
+      // gallery preview (previews set data-state directly in markup).
+      if (typeof listenerSurface !== 'undefined' && listenerSurface) {
+        listenerSurface.dataset.state = next;
+      }
 
       // Primary pill label + aria
       const label = LABELS[next];
@@ -942,10 +819,8 @@
     }
 
     function reconcileFromDOM() {
-      // Skip reconciliation in transient states (timer resolves) and in
-      // `primer` (user-choice state, no DOM correlate). Without this,
-      // a routine reconcile would silently override primer → idle.
-      if (state === 'primer' || isTransitional()) return;
+      // Skip reconciliation while in a transient state — the timer resolves it.
+      if (isTransitional()) return;
       const isActive = !!(tbStart && tbStart.classList.contains('is-active'));
       const isPaused = !isActive &&
                        !!(listenChip && listenChip.classList.contains('is-paused')) &&
@@ -955,9 +830,12 @@
     }
 
     // Apply the initial state's body class so derived selectors (e.g.
-    // body.proto-idle.view-feed) work on first paint — set() itself short-
+    // body.proto-idle.view-listener) work on first paint — set() itself short-
     // circuits when next === state, so we paint the baseline manually here.
     document.body.classList.add(`proto-${state}`);
+    if (typeof listenerSurface !== 'undefined' && listenerSurface) {
+      listenerSurface.dataset.state = state;
+    }
 
     return { get state() { return state; }, set, reconcileFromDOM };
   })();
@@ -1002,14 +880,14 @@
   });
   document.querySelectorAll('[data-proto-action="toggle"]').forEach((btn) => {
     btn.addEventListener('click', () => {
-      // Listening              → Stop (full reset, with 300ms 'stopping' transition)
-      // Paused / Idle / Primer → Start (begin a session)
-      // Starting / Stopping    → ignore (already transitioning)
+      // Listening          → Stop (300ms 'stopping' transition then reset)
+      // Idle / Paused      → Start (begin a session)
+      // Starting / Stopping → ignore (already transitioning)
       const s = machine.state;
       if (s === 'listening') {
         machine.set('stopping');
         if (tbStop && !tbStop.disabled) tbStop.click();
-      } else if (s === 'paused' || s === 'idle' || s === 'primer') {
+      } else if (s === 'paused' || s === 'idle') {
         machine.set('starting');
         if (tbStart && !tbStart.disabled) tbStart.click();
       }
@@ -1039,74 +917,320 @@
     document.body.classList.toggle('patient-open', open);
     if (patientBtn) patientBtn.classList.toggle('is-surface-open', open);
     try { sessionStorage.setItem(PATIENT_KEY, open ? '1' : '0'); } catch (e) {}
-    // Feed direction: opening the patient ALWAYS shows the primer (language
-    // confirm + Start / Skip), unless an active session is running. Closing
-    // the patient drops back to idle so the surface hides.
-    // Note: previously this only triggered from `idle`, which meant stale
-    // states ('paused' left over from a failed test, for example) would
-    // silently swallow the patient-open click. The new check is permissive:
-    // any non-active state opens the primer.
-    if (typeof machine !== 'undefined' && document.body.classList.contains('view-feed')) {
-      const sessionActive =
-        machine.state === 'starting' ||
-        machine.state === 'listening' ||
-        machine.state === 'stopping';
-      if (open && !sessionActive) {
-        machine.set('primer');
-      } else if (!open) {
-        // Patient closed (Skip or toggle off): always drop to idle, regardless
-        // of where the machine was. Stops stale states sticking around.
-        machine.set('idle');
-      }
+    reconcileListenerPatientGate();
+  }
+  // Opening a patient auto-starts the session straight from idle (no
+  // primer step). If a session is already running we leave it alone.
+  // Closing the patient stops any active session.
+  //
+  // `autoToggleInFlight` debounces back-to-back triggers (e.g. setPatientOpen
+  // firing during a state transition) — without it, two fast open→close→open
+  // toggles can call recognition.start() while the previous instance is
+  // still tearing down, producing the "recognition has already started"
+  // error in app.js.
+  let autoToggleInFlight = false;
+  function reconcileListenerPatientGate() {
+    if (typeof machine === 'undefined') return;
+    if (!document.body.classList.contains('view-listener')) return;
+    if (autoToggleInFlight) return;
+    const open = document.body.classList.contains('patient-open');
+    const s = machine.state;
+    const sessionActive = s === 'starting' || s === 'listening' || s === 'stopping';
+    let fired = false;
+    if (open && !sessionActive && s !== 'paused') {
+      machine.set('starting');
+      if (tbStart && !tbStart.disabled) { tbStart.click(); fired = true; }
+    } else if (!open && sessionActive) {
+      machine.set('stopping');
+      if (tbStop && !tbStop.disabled) { tbStop.click(); fired = true; }
+    } else if (!open && s === 'paused') {
+      machine.set('idle');
+    }
+    if (fired) {
+      autoToggleInFlight = true;
+      setTimeout(() => { autoToggleInFlight = false; }, 500);
+    }
+    if (typeof ensureListenerPositioned === 'function') {
+      requestAnimationFrame(ensureListenerPositioned);
     }
   }
-  if (patientBtn) {
-    patientBtn.addEventListener('click', () => {
-      setPatientOpen(!document.body.classList.contains('patient-open'));
-    });
-  }
+  // The toolbar Patient button represents the EHR's (EMIS / S1) patient
+  // context by proxy — it does NOT itself open a patient. Opening a
+  // patient is simulated by the "Open patient" button on the technical
+  // control panel (#btnNewPatient). The toolbar still receives the
+  // sticky `is-surface-open` styling when patient-open flips, via
+  // `setPatientOpen` — that's the proxy visual feedback we want to keep.
   const newPatientBtn = document.getElementById('btnNewPatient');
   if (newPatientBtn) {
     newPatientBtn.addEventListener('click', () => setPatientOpen(true));
   }
-  // Restore last state for the session
-  try {
-    if (sessionStorage.getItem(PATIENT_KEY) === '1') setPatientOpen(true);
-  } catch (e) {}
+  // Always start with no patient open. Previously we restored from
+  // sessionStorage, but that meant every page load auto-fired the
+  // listening flow (because patient-open → auto-start), which surprised
+  // the user and could collide with app.js's fresh recognition init.
+  // Patient context must be re-opened explicitly each session.
+  try { sessionStorage.removeItem(PATIENT_KEY); } catch (e) {}
+
+  // -------- Language dropdown — custom UI synced to #langPicker ---------
+  // Custom dropdown (button + popover) for visual consistency with the
+  // other Listener controls. The legacy #langPicker stays in the DOM and
+  // is the source of truth for app.js's STT language — our dropdown
+  // writes to it (+ dispatches `change`) so the underlying STT switches.
+  const langPicker = document.getElementById('langPicker');
+  const langWrap = listenerSurface.querySelector('.proto-listener__lang');
+  const langBtn = listenerSurface.querySelector('.proto-listener__lang-btn');
+  const langValue = listenerSurface.querySelector('.proto-listener__lang-value');
+  const langMenu = listenerSurface.querySelector('.proto-listener__lang-menu');
+  const langOptions = listenerSurface.querySelectorAll('.proto-listener__lang-option');
+
+  function closeLangMenu() {
+    if (!langMenu || langMenu.hidden) return;
+    langMenu.hidden = true;
+    if (langBtn) langBtn.setAttribute('aria-expanded', 'false');
+  }
+  function openLangMenu() {
+    if (!langMenu) return;
+    langMenu.hidden = false;
+    if (langBtn) langBtn.setAttribute('aria-expanded', 'true');
+  }
+  // Two-letter ISO display codes for the combined CTA's lang half. The
+  // dropdown options keep their full names for accessibility.
+  const LANG_SHORT_CODES = { 'en-GB': 'EN', 'es-ES': 'ES', 'uk-UA': 'UK' };
+  function syncLangFromPicker() {
+    if (!langPicker || !langValue) return;
+    const val = langPicker.value;
+    langValue.textContent = LANG_SHORT_CODES[val] || (val || '').slice(0, 2).toUpperCase();
+    langOptions.forEach((o) => {
+      o.classList.toggle('is-selected', o.dataset.lang === val);
+    });
+  }
+
+  if (langBtn) {
+    langBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (langMenu.hidden) openLangMenu(); else closeLangMenu();
+    });
+  }
+  langOptions.forEach((opt) => {
+    opt.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const val = opt.dataset.lang;
+      if (langPicker && langPicker.value !== val) {
+        langPicker.value = val;
+        langPicker.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+      syncLangFromPicker();
+      closeLangMenu();
+    });
+  });
+  document.addEventListener('click', (e) => {
+    if (langWrap && !langWrap.contains(e.target)) closeLangMenu();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeLangMenu();
+  });
+  if (langPicker) {
+    langPicker.addEventListener('change', syncLangFromPicker);
+    syncLangFromPicker();
+  }
+
+  // -------- Status pill — service + patient state machine --------------
+  // The pill has two distinct sections:
+  //   • Service: API status (dot + text) + error banner when relevant.
+  //   • Patient: "No patient open" → "Patient opened" with state-driven
+  //     buttons (Open patient / Open another + Close).
+  // Visibility per state is driven by `body.patient-open` (CSS) — the JS
+  // just renders the markup once and wires the new actions.
+  const statusPillEl = document.getElementById('statusPill');
+  const sttStatusEl = document.getElementById('sttStatus');
+  const newPatientPrimaryBtn = document.getElementById('btnNewPatient');
+  if (statusPillEl && sttStatusEl) {
+    // Rename the existing primary "New patient open" to "Open patient".
+    if (newPatientPrimaryBtn) {
+      const labelNode = Array.from(newPatientPrimaryBtn.childNodes).find(
+        (n) => n.nodeType === 3 && n.textContent.trim()
+      );
+      if (labelNode) labelNode.textContent = ' Open patient';
+    }
+
+    // ----- Patient block FIRST (EHR Connection) -----
+    let patientBlock = statusPillEl.querySelector('.status-pill__patient');
+    if (!patientBlock) {
+      patientBlock = document.createElement('div');
+      patientBlock.className = 'status-pill__patient';
+      patientBlock.innerHTML = `
+        <div class="status-pill__patient-section">
+          <span class="status-pill__eyebrow">EHR Connection</span>
+          <div class="status-pill__patient-status">
+            <span class="status-pill__patient-dot" aria-hidden="true"></span>
+            <span class="status-pill__patient-label status-pill__patient-label--closed">No patient open</span>
+            <span class="status-pill__patient-label status-pill__patient-label--opened">Patient opened</span>
+          </div>
+        </div>
+      `;
+      statusPillEl.appendChild(patientBlock);
+      const actionsRow = statusPillEl.querySelector('.status-pill-actions');
+      if (actionsRow) patientBlock.appendChild(actionsRow);
+      const secondaryActions = document.createElement('div');
+      secondaryActions.className = 'status-pill__patient-actions';
+      secondaryActions.innerHTML = `
+        <button class="status-pill__btn status-pill__btn--secondary" type="button" data-pill-action="open-another">Open another</button>
+        <button class="status-pill__btn status-pill__btn--ghost"     type="button" data-pill-action="close-patient">Close</button>
+      `;
+      patientBlock.appendChild(secondaryActions);
+      secondaryActions.querySelector('[data-pill-action="close-patient"]').addEventListener('click', () => {
+        if (typeof setPatientOpen === 'function') setPatientOpen(false);
+      });
+      secondaryActions.querySelector('[data-pill-action="open-another"]').addEventListener('click', () => {
+        if (typeof setPatientOpen === 'function') {
+          setPatientOpen(false);
+          setTimeout(() => setPatientOpen(true), 600);
+        }
+      });
+    }
+
+    // ----- Service block SECOND (Voice API) -----
+    // The status text + banner are MOVED into this wrapper so any
+    // voice-API error sits under its own section, not floating between
+    // unrelated rows. Banner goes AFTER the status line so the error
+    // reads as "this row failed because…".
+    let serviceBlock = statusPillEl.querySelector('.status-pill__service');
+    let banner;
+    if (!serviceBlock) {
+      serviceBlock = document.createElement('div');
+      serviceBlock.className = 'status-pill__service';
+      serviceBlock.innerHTML = `<span class="status-pill__eyebrow">Voice API</span>`;
+      serviceBlock.appendChild(sttStatusEl);
+      banner = document.createElement('div');
+      banner.className = 'status-pill__banner';
+      banner.innerHTML = `
+        <svg class="status-pill__banner-ic" viewBox="0 0 16 16" aria-hidden="true">
+          <path fill="currentColor" d="M8 1.5a6.5 6.5 0 1 1 0 13 6.5 6.5 0 0 1 0-13Zm0 3.25a.75.75 0 0 0-.75.75v3.5a.75.75 0 1 0 1.5 0V5.5A.75.75 0 0 0 8 4.75Zm0 5.75a.85.85 0 1 0 0 1.7.85.85 0 0 0 0-1.7Z"/>
+        </svg>
+        <span class="status-pill__banner-text"></span>
+      `;
+      serviceBlock.appendChild(banner);
+      statusPillEl.appendChild(serviceBlock);
+    } else {
+      banner = serviceBlock.querySelector('.status-pill__banner');
+    }
+    const bannerText = banner.querySelector('.status-pill__banner-text');
+
+    // ----- Status copy rewriting ---------------------------------------
+    // app.js writes verbose, instruction-heavy strings into #sttStatus
+    // ("Click Start...", "Click the mic..."). We re-render them into
+    // calm, status-only copy. A short tip is appended to the error
+    // banner when the issue is microphone permission.
+    function classifyStatus(text) {
+      const t = (text || '').toLowerCase();
+      if (!t) return 'ready';
+      if (/(error|denied|blocked|no microphone|unsupported|not available|network|could not)/.test(t)) return 'error';
+      if (/(connect|loading|starting|warm|wait|translating|processing)/.test(t)) return 'loading';
+      return 'ready';
+    }
+    function friendlyStatus(raw, state) {
+      const t = (raw || '').trim();
+      if (state === 'error') {
+        if (/denied|blocked|permission/i.test(t))    return 'Microphone access blocked';
+        if (/no microphone|input device/i.test(t))   return 'No microphone detected';
+        if (/network/i.test(t))                       return 'Network error';
+        if (/not available|unsupported/i.test(t))    return 'Speech recognition unavailable';
+        if (/no speech/i.test(t))                     return 'No speech detected yet';
+        if (/could not start/i.test(t))               return 'Could not start recognition';
+        return 'Speech recognition error';
+      }
+      if (state === 'loading') {
+        if (/translating/i.test(t)) return 'Translating speech';
+        if (/processing/i.test(t))  return 'Processing';
+        if (/hearing/i.test(t))     return 'Hearing speech';
+        return 'Connecting';
+      }
+      // Ready states — strip "Click X" instructions.
+      if (/listening/i.test(t))   return 'Listening for speech';
+      if (/paused/i.test(t))      return 'Session paused';
+      if (/captured/i.test(t))    return 'Captured';
+      if (/mock/i.test(t))        return 'Mock input active';
+      if (/llm connected/i.test(t)) return 'Local LLM connected';
+      // Strip everything after a " · " separator (app.js's instruction tail)
+      return t.replace(/\s*·.*$/, '').replace(/\.$/, '') || 'Speech recognition ready';
+    }
+    function tipForError(raw) {
+      if (/denied|blocked|permission/i.test(raw)) {
+        return 'Open this site in your browser and allow microphone access (click the lock icon in the address bar → Site settings → Microphone → Allow).';
+      }
+      if (/no microphone|input device/i.test(raw)) {
+        return 'Check that a microphone is connected and selected as the input device.';
+      }
+      if (/network/i.test(raw)) {
+        return 'Check your internet connection — speech recognition needs a working connection.';
+      }
+      if (/not available|unsupported/i.test(raw)) {
+        return 'Try a Chromium-based browser (Chrome, Arc, Edge). Safari/Firefox don\'t support the Web Speech API.';
+      }
+      return '';
+    }
+
+    let lastWritten = '';
+    function paintStatus() {
+      const raw = sttStatusEl.textContent || '';
+      // Ignore re-fires triggered by our own write.
+      if (raw === lastWritten) return;
+      const state = classifyStatus(raw);
+      statusPillEl.dataset.state = state;
+      const friendly = friendlyStatus(raw, state);
+      if (bannerText) {
+        if (state === 'error') {
+          const tip = tipForError(raw);
+          bannerText.innerHTML = `<strong class="status-pill__banner-headline">${friendly}</strong>` +
+                                  (tip ? `<span class="status-pill__banner-tip">${tip}</span>` : '');
+        } else {
+          bannerText.textContent = '';
+        }
+      }
+      lastWritten = friendly;
+      if (sttStatusEl.textContent !== friendly) sttStatusEl.textContent = friendly;
+    }
+    new MutationObserver(paintStatus).observe(sttStatusEl, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+    });
+    paintStatus();
+  }
 
   // -------- Feed surface — observers + handlers --------------------------
   // Transcript feed: mirror text from #transcriptBody (already maintained by
   // app.js). Counter chip: mirror count from #tbBadge.
   const transcriptBody = document.getElementById('transcriptBody');
   const tbBadge = document.getElementById('tbBadge');
-  const feedTranscript = feedSurface.querySelector('.proto-feed__transcript-text');
-  const feedCounter = feedSurface.querySelector('.proto-feed__counter');
-  const feedTimer = feedSurface.querySelector('.proto-feed__primary-time');
+  const listenerTranscript = listenerSurface.querySelector('.proto-listener__transcript-text');
+  const listenerCounter = listenerSurface.querySelector('.proto-listener__counter');
+  const listenerTimer = listenerSurface.querySelector('.proto-listener__primary-time');
 
-  function paintFeedTranscript() {
-    if (!transcriptBody || !feedTranscript) return;
+  function paintListenerTranscript() {
+    if (!transcriptBody || !listenerTranscript) return;
     // app.js writes a placeholder "<span class='empty'>Transcript will
     // appear here as you speak…</span>" into #transcriptBody before any
     // speech lands. Treat that as empty so the placeholder never leaks
     // into the Feed surface.
     if (transcriptBody.querySelector('.empty')) {
-      feedTranscript.textContent = '';
+      listenerTranscript.textContent = '';
       return;
     }
     const txt = (transcriptBody.textContent || '').replace(/\s+/g, ' ').trim();
-    feedTranscript.textContent = txt.slice(-120);
+    listenerTranscript.textContent = txt.slice(-120);
   }
   if (transcriptBody) {
-    new MutationObserver(paintFeedTranscript).observe(transcriptBody, {
+    new MutationObserver(paintListenerTranscript).observe(transcriptBody, {
       childList: true,
       subtree: true,
       characterData: true,
     });
-    paintFeedTranscript();
+    paintListenerTranscript();
   }
 
-  function paintFeedCounter() {
-    if (!feedCounter) return;
+  function paintListenerCounter() {
+    if (!listenerCounter) return;
     let n = 0;
     if (tbBadge) {
       const txt = (tbBadge.textContent || '').trim();
@@ -1117,27 +1241,27 @@
     // Counter is always rendered with a numeric value while a session is
     // running — at 0 it sits as a soft grey neutral chip; 1–2 use the subtle
     // pink fill; ≥3 flips to the highlighted red.
-    feedCounter.textContent = n >= 100 ? '99+' : String(n);
-    feedCounter.classList.toggle('proto-feed__counter--empty', n <= 0);
-    feedCounter.classList.toggle('is-high', n >= 3);
+    listenerCounter.textContent = n >= 100 ? '99+' : String(n);
+    listenerCounter.classList.toggle('proto-listener__counter--empty', n <= 0);
+    listenerCounter.classList.toggle('is-high', n >= 3);
   }
   if (tbBadge) {
-    new MutationObserver(paintFeedCounter).observe(tbBadge, {
+    new MutationObserver(paintListenerCounter).observe(tbBadge, {
       childList: true,
       characterData: true,
       subtree: true,
       attributes: true,
       attributeFilter: ['hidden'],
     });
-    paintFeedCounter();
+    paintListenerCounter();
   }
 
   // Mirror the timer text from the existing primary meta into the Feed's
   // own time slot — keeps both surfaces showing the same elapsed value.
   const existingMeta = document.querySelector('.proto-ai__primary-meta');
   function paintFeedTimer() {
-    if (!feedTimer || !existingMeta) return;
-    feedTimer.textContent = existingMeta.textContent || '0:00';
+    if (!listenerTimer || !existingMeta) return;
+    listenerTimer.textContent = existingMeta.textContent || '0:00';
   }
   if (existingMeta) {
     new MutationObserver(paintFeedTimer).observe(existingMeta, {
@@ -1150,8 +1274,8 @@
   // Reads body classes directly so it stays in sync regardless of which path
   // updated the state (machine.set vs. external mutations).
   function paintFeedPrimaryLabel() {
-    const label = feedSurface.querySelector('.proto-feed__primary-label');
-    const btn = feedSurface.querySelector('.proto-feed__primary');
+    const label = listenerSurface.querySelector('.proto-listener__primary-label');
+    const btn = listenerSurface.querySelector('.proto-listener__primary');
     if (!label || !btn) return;
     if (document.body.classList.contains('proto-paused')) {
       label.textContent = 'Listen';
@@ -1275,7 +1399,7 @@
     });
   }
 
-  feedSurface.querySelector('[data-feed-action="open-summary"]').addEventListener('click', () => {
+  listenerSurface.querySelector('[data-listener-action="open-summary"]').addEventListener('click', () => {
     if (machine.state === 'listening') {
       if (tbPause && !tbPause.disabled) tbPause.click();
       machine.set('paused');
@@ -1283,93 +1407,63 @@
     openSessionSummary();
   });
 
-  // Primer row buttons
-  feedSurface.querySelector('[data-feed-action="start-session"]').addEventListener('click', () => {
-    machine.set('starting');
-    if (tbStart && !tbStart.disabled) tbStart.click();
-  });
-  feedSurface.querySelector('[data-feed-action="skip-session"]').addEventListener('click', () => {
-    // Skip = no session for this patient. Dismiss the surface entirely by
-    // closing the patient context — same effect as toggling the Patient
-    // button off. Re-opening the patient (or opening a different one) will
-    // re-trigger the primer.
-    setPatientOpen(false);
-  });
-
-  // Mirror the primer language picker into the existing #langPicker that
-  // app.js reads from. Two-way sync — change either, both stay in step.
-  const primerLangSelect = feedSurface.querySelector('[data-feed-action="primer-lang"]');
-  const appLangPicker = document.getElementById('langPicker');
-  if (primerLangSelect && appLangPicker) {
-    // Initialise primer select from the app's current value
-    primerLangSelect.value = appLangPicker.value;
-    primerLangSelect.addEventListener('change', () => {
-      appLangPicker.value = primerLangSelect.value;
-      // Trigger app.js's change handler so the choice propagates
-      appLangPicker.dispatchEvent(new Event('change', { bubbles: true }));
-    });
-    // If something else updates the app picker, mirror back
-    appLangPicker.addEventListener('change', () => {
-      if (primerLangSelect.value !== appLangPicker.value) {
-        primerLangSelect.value = appLangPicker.value;
-      }
+  // Icon-only Stop in paused state — ends the session entirely.
+  const stopPausedBtn = listenerSurface.querySelector('[data-listener-action="stop"]');
+  if (stopPausedBtn) {
+    stopPausedBtn.addEventListener('click', () => {
+      machine.set('stopping');
+      if (tbStop && !tbStop.disabled) tbStop.click();
     });
   }
-
-  // Stop button (visible in paused state)
-  feedSurface.querySelector('[data-feed-action="stop"]').addEventListener('click', () => {
-    machine.set('stopping');
-    if (tbStop && !tbStop.disabled) tbStop.click();
-  });
 
   // Mic Settings popover toggle
-  const feedPopover = feedSurface.querySelector('.proto-feed__popover');
+  const listenerPopover = listenerSurface.querySelector('.proto-listener__popover');
   function positionPopover(triggerEl) {
-    if (!feedPopover || !triggerEl) return;
+    if (!listenerPopover || !triggerEl) return;
     const rect = triggerEl.getBoundingClientRect();
-    const wrapRect = feedSurface.getBoundingClientRect();
+    const wrapRect = listenerSurface.getBoundingClientRect();
     // Position relative to the feed surface (which has position: relative implied
     // by being a positioned ancestor in CSS; we'll absolute-position here).
-    feedPopover.style.top = (rect.bottom - wrapRect.top + 6) + 'px';
-    feedPopover.style.right = (wrapRect.right - rect.right) + 'px';
-    feedPopover.style.left = 'auto';
+    listenerPopover.style.top = (rect.bottom - wrapRect.top + 6) + 'px';
+    listenerPopover.style.right = (wrapRect.right - rect.right) + 'px';
+    listenerPopover.style.left = 'auto';
   }
-  feedSurface.querySelectorAll('[data-feed-action="mic-settings"]').forEach((btn) => {
+  listenerSurface.querySelectorAll('[data-listener-action="mic-settings"]').forEach((btn) => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
-      const isOpen = !feedPopover.hidden;
+      const isOpen = !listenerPopover.hidden;
       if (isOpen) {
-        feedPopover.hidden = true;
+        listenerPopover.hidden = true;
       } else {
         positionPopover(btn);
-        feedPopover.hidden = false;
+        listenerPopover.hidden = false;
       }
     });
   });
   // Close popover on outside click or Escape
   document.addEventListener('click', (e) => {
-    if (feedPopover.hidden) return;
-    if (feedPopover.contains(e.target)) return;
-    if (e.target.closest('[data-feed-action="mic-settings"]')) return;
-    feedPopover.hidden = true;
+    if (listenerPopover.hidden) return;
+    if (listenerPopover.contains(e.target)) return;
+    if (e.target.closest('[data-listener-action="mic-settings"]')) return;
+    listenerPopover.hidden = true;
   });
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && !feedPopover.hidden) feedPopover.hidden = true;
+    if (e.key === 'Escape' && !listenerPopover.hidden) listenerPopover.hidden = true;
   });
 
   // Device picker — visual only; toggle the checkmark active state
-  feedPopover.querySelectorAll('[data-feed-device]').forEach((btn) => {
+  listenerPopover.querySelectorAll('[data-listener-device]').forEach((btn) => {
     btn.addEventListener('click', () => {
-      feedPopover.querySelectorAll('[data-feed-device]').forEach((b) => {
-        b.classList.toggle('proto-feed__pop-device--active', b === btn);
-        const chk = b.querySelector('.proto-feed__pop-check');
-        if (chk) chk.classList.toggle('proto-feed__pop-check--placeholder', b !== btn);
+      listenerPopover.querySelectorAll('[data-listener-device]').forEach((b) => {
+        b.classList.toggle('proto-listener__pop-device--active', b === btn);
+        const chk = b.querySelector('.proto-listener__pop-check');
+        if (chk) chk.classList.toggle('proto-listener__pop-check--placeholder', b !== btn);
       });
     });
   });
 
   // The wrap needs position: relative for the popover anchor to work
-  feedSurface.style.position = 'relative';
+  listenerSurface.style.position = 'relative';
 
   // -------- 6. Voice meter (synthetic, no parallel mic stream) -----------
   // Originally this opened a parallel getUserMedia stream to drive the bars
@@ -1411,15 +1505,20 @@
   }
 
   // -------- 7. Drag — replica toolbar handle (moves #toolbarWrap) --------
-  // Restore saved toolbar position
-  try {
-    const tbPos = JSON.parse(localStorage.getItem(STORAGE_TB_POS) || 'null');
-    if (tbPos && typeof tbPos.x === 'number' && typeof tbPos.y === 'number') {
-      toolbarWrap.style.left = tbPos.x + 'px';
-      toolbarWrap.style.top = tbPos.y + 'px';
-      toolbarWrap.style.transform = 'none';
-    }
-  } catch (e) {}
+  // Restore saved toolbar position only when drag is enabled. While drag is
+  // off, an older saved pixel position would freeze the toolbar wherever
+  // it was last dragged and the user has no way to move it back — so we
+  // honour the CSS default (top:50%; left:50%; centred) instead.
+  if (DRAG_ENABLED) {
+    try {
+      const tbPos = JSON.parse(localStorage.getItem(STORAGE_TB_POS) || 'null');
+      if (tbPos && typeof tbPos.x === 'number' && typeof tbPos.y === 'number') {
+        toolbarWrap.style.left = tbPos.x + 'px';
+        toolbarWrap.style.top = tbPos.y + 'px';
+        toolbarWrap.style.transform = 'none';
+      }
+    } catch (e) {}
+  }
 
   const tbHandle = replicaToolbar.querySelector('.proto-tb-handle');
   let tbDrag = null;
@@ -1450,69 +1549,135 @@
     try { localStorage.setItem(STORAGE_TB_POS, JSON.stringify({ x: rect.left, y: rect.top })); } catch (e) {}
   }
 
-  tbHandle.addEventListener('mousedown', (e) => { e.preventDefault(); tbDragStart(e.clientX, e.clientY); });
-  tbHandle.addEventListener('touchstart', (e) => {
-    const t = e.touches[0]; tbDragStart(t.clientX, t.clientY);
-  }, { passive: true });
+  if (DRAG_ENABLED) {
+    tbHandle.addEventListener('mousedown', (e) => { e.preventDefault(); tbDragStart(e.clientX, e.clientY); });
+    tbHandle.addEventListener('touchstart', (e) => {
+      const t = e.touches[0]; tbDragStart(t.clientX, t.clientY);
+    }, { passive: true });
+  }
 
-  // -------- 8. Drag — separate AI bar ------------------------------------
-  try {
-    const sepPos = JSON.parse(localStorage.getItem(STORAGE_SEP_POS) || 'null');
-    if (sepPos && typeof sepPos.x === 'number' && typeof sepPos.y === 'number') {
-      aiSeparate.style.left = sepPos.x + 'px';
-      aiSeparate.style.top = sepPos.y + 'px';
-    }
-  } catch (e) {}
+  // -------- 8. Drag — Feed surface --------------------------------------
+  // Feed surface uses RIGHT/BOTTOM anchoring (not LEFT/TOP) so the drag
+  // handle on the right edge stays pinned when the wrap resizes between
+  // states — content grows/shrinks toward the left, handle stays put.
+  // Default CSS positions the surface bottom-centre via transform; on first
+  // reveal we measure and convert that to a fixed `right` pixel value so
+  // subsequent state changes don't move the handle.
+  const listenerHandle = listenerSurface.querySelector('.proto-listener__handle');
+  let listenerDrag = null;
+  let listenerPositioned = false;
 
-  const sepGrip = aiSeparate.querySelector('.proto-ai__grip');
-  let sepDrag = null;
+  function pinSurface(r, b) {
+    // Switch from CSS-default centring to fixed right/bottom anchoring.
+    // The CSS centring trick uses `top: 50%; left: 50%; transform:
+    // translate(-50%, -50%)` all marked !important — flipping
+    // data-positioned="1" routes the element to the `[data-positioned="1"]`
+    // rule which clears top/left/transform (also !important), so the
+    // inline right/bottom set below take effect cleanly.
+    listenerSurface.dataset.positioned = '1';
+    listenerSurface.style.right = r + 'px';
+    listenerSurface.style.bottom = b + 'px';
+  }
 
-  function sepDragStart(cx, cy) {
-    const rect = aiSeparate.getBoundingClientRect();
-    sepDrag = { mx: cx, my: cy, x: rect.left, y: rect.top };
+  function ensureListenerPositioned() {
+    // Position is CSS-only now (right: calc(50% - 145px); top: 75%) so
+    // the right edge stays pinned as the bar width changes between
+    // states. JS pinning only runs when DRAG_ENABLED — and even then
+    // only to restore a saved drag position.
+    if (!DRAG_ENABLED) { listenerPositioned = true; return; }
+    if (listenerPositioned) return;
+    // NB: `offsetParent` is always null for `position: fixed` elements, so
+    // we can't gate on that — the `rect.width === 0` check below catches
+    // the "not yet laid out" case correctly.
+    const rect = listenerSurface.getBoundingClientRect();
+    if (rect.width === 0) return;
+    try {
+      const saved = JSON.parse(localStorage.getItem(STORAGE_LISTENER_POS) || 'null');
+      if (saved && typeof saved.r === 'number' && typeof saved.b === 'number') {
+        const maxR = Math.max(0, window.innerWidth - rect.width);
+        const maxB = Math.max(0, window.innerHeight - rect.height);
+        if (saved.r >= 0 && saved.r <= maxR && saved.b >= 0 && saved.b <= maxB) {
+          pinSurface(saved.r, saved.b);
+          listenerPositioned = true;
+          return;
+        }
+      }
+    } catch (e) {}
+    const r = Math.max(0, Math.round(window.innerWidth - rect.right));
+    const b = Math.max(0, Math.round(window.innerHeight - rect.bottom));
+    pinSurface(r, b);
+    listenerPositioned = true;
+  }
+
+  function listenerDragStart(cx, cy) {
+    ensureListenerPositioned();
+    const rect = listenerSurface.getBoundingClientRect();
+    const r = window.innerWidth - rect.right;
+    const b = window.innerHeight - rect.bottom;
+    pinSurface(r, b);
+    listenerDrag = { mx: cx, my: cy, r, b };
     document.body.style.cursor = 'grabbing';
   }
-  function sepDragMove(cx, cy) {
-    if (!sepDrag) return;
-    const nx = sepDrag.x + (cx - sepDrag.mx);
-    const ny = sepDrag.y + (cy - sepDrag.my);
-    const maxX = window.innerWidth - aiSeparate.offsetWidth;
-    const maxY = window.innerHeight - aiSeparate.offsetHeight;
-    aiSeparate.style.left = Math.min(Math.max(0, nx), maxX) + 'px';
-    aiSeparate.style.top  = Math.min(Math.max(0, ny), maxY) + 'px';
+  function listenerDragMove(cx, cy) {
+    if (!listenerDrag) return;
+    const nr = listenerDrag.r - (cx - listenerDrag.mx);
+    const nb = listenerDrag.b - (cy - listenerDrag.my);
+    const w = listenerSurface.offsetWidth;
+    const h = listenerSurface.offsetHeight;
+    const maxR = window.innerWidth - w;
+    const maxB = window.innerHeight - h;
+    listenerSurface.style.right  = Math.min(Math.max(0, nr), maxR) + 'px';
+    listenerSurface.style.bottom = Math.min(Math.max(0, nb), maxB) + 'px';
   }
-  function sepDragEnd() {
-    if (!sepDrag) return;
-    sepDrag = null;
+  function listenerDragEnd() {
+    if (!listenerDrag) return;
+    listenerDrag = null;
     document.body.style.cursor = '';
-    const rect = aiSeparate.getBoundingClientRect();
-    try { localStorage.setItem(STORAGE_SEP_POS, JSON.stringify({ x: rect.left, y: rect.top })); } catch (e) {}
+    const r = parseFloat(listenerSurface.style.right) || 0;
+    const b = parseFloat(listenerSurface.style.bottom) || 0;
+    try { localStorage.setItem(STORAGE_LISTENER_POS, JSON.stringify({ r, b })); } catch (e) {}
   }
 
-  sepGrip.addEventListener('mousedown', (e) => { e.preventDefault(); sepDragStart(e.clientX, e.clientY); });
-  sepGrip.addEventListener('touchstart', (e) => {
-    const t = e.touches[0]; sepDragStart(t.clientX, t.clientY);
-  }, { passive: true });
+  if (DRAG_ENABLED && listenerHandle) {
+    listenerHandle.addEventListener('mousedown', (e) => { e.preventDefault(); listenerDragStart(e.clientX, e.clientY); });
+    listenerHandle.addEventListener('touchstart', (e) => {
+      const t = e.touches[0]; listenerDragStart(t.clientX, t.clientY);
+    }, { passive: true });
+  }
 
-  // Shared move/end listeners — single source for both drags
-  document.addEventListener('mousemove', (e) => { tbDragMove(e.clientX, e.clientY); sepDragMove(e.clientX, e.clientY); });
-  document.addEventListener('mouseup', () => { tbDragEnd(); sepDragEnd(); });
-  document.addEventListener('touchmove', (e) => {
-    if (!tbDrag && !sepDrag) return;
-    const t = e.touches[0]; tbDragMove(t.clientX, t.clientY); sepDragMove(t.clientX, t.clientY);
-  }, { passive: true });
-  document.addEventListener('touchend', () => { tbDragEnd(); sepDragEnd(); });
+  if (DRAG_ENABLED) {
+    document.addEventListener('mousemove', (e) => {
+      tbDragMove(e.clientX, e.clientY);
+      listenerDragMove(e.clientX, e.clientY);
+    });
+    document.addEventListener('mouseup', () => { tbDragEnd(); listenerDragEnd(); });
+    document.addEventListener('touchmove', (e) => {
+      if (!tbDrag && !listenerDrag) return;
+      const t = e.touches[0];
+      tbDragMove(t.clientX, t.clientY);
+      listenerDragMove(t.clientX, t.clientY);
+    }, { passive: true });
+    document.addEventListener('touchend', () => { tbDragEnd(); listenerDragEnd(); });
+  }
 
   // -------- 9. Bootstrap initial view ------------------------------------
-  let initialView = 'attached';
+  // Default is the Listener surface; Components is reached via the chip
+  // toggle. URL ?view=components honoured; saved view only honoured if
+  // it's 'components' — anything else collapses to Listener.
+  let initialView = 'listener';
   try {
     const fromUrl = new URL(location.href).searchParams.get('view');
-    if (fromUrl && VIEWS.includes(fromUrl)) initialView = fromUrl;
+    if (fromUrl === 'components' || fromUrl === 'listener') initialView = fromUrl;
     else {
       const saved = localStorage.getItem(STORAGE_VIEW);
-      if (saved && VIEWS.includes(saved)) initialView = saved;
+      if (saved === 'components') initialView = 'components';
     }
   } catch (e) {}
+  // Compact is the only variant exposed in the live UI right now. Wide
+  // is still available via Components for design reference.
+  setVariant('compact');
+
   setView(initialView);
   machine.reconcileFromDOM();
+  requestAnimationFrame(ensureListenerPositioned);
 })();

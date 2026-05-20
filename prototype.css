@@ -80,7 +80,94 @@ body.mobile-mic-mode {
     linear-gradient(135deg, #eaeef4 0%, #e5eaf0 100%) !important;
 }
 
-/* --------- View switcher chip (always visible) --------- */
+/* --------- Background switcher (bottom-centre) ---------
+   Two swatches: light (default colourful mesh) / dark (same mesh
+   structure, darker palette). Active swatch gets a white ring +
+   slight lift. */
+.proto-bg-switch {
+  /* Bottom-left, aligned with the status pill column above it
+     (`left: 36px` matches `.status-pill { left: 36px }` from styles.css). */
+  position: fixed;
+  bottom: 28px;
+  left: 36px;
+  z-index: 49;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px;
+  background: rgba(11, 12, 12, .42);
+  -webkit-backdrop-filter: blur(8px);
+          backdrop-filter: blur(8px);
+  border-radius: 999px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, .25);
+}
+.proto-bg-switch__swatch {
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: 50%;
+  cursor: pointer;
+  padding: 0;
+  outline: 0;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .18);
+  transition: transform .12s ease, box-shadow .14s ease;
+}
+.proto-bg-switch__swatch:hover { transform: scale(1.08); }
+.proto-bg-switch__swatch.is-active {
+  box-shadow: inset 0 0 0 2px #fff, 0 0 0 2px rgba(255, 255, 255, .25);
+  transform: scale(1.06);
+}
+.proto-bg-switch__swatch:focus-visible {
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .2), 0 0 0 2px #F9CB40;
+}
+/* Components view has its own light backdrop — bg switcher does nothing
+   useful there, so hide it to reduce noise. */
+body.view-components .proto-bg-switch { display: none; }
+.proto-bg-switch__swatch--light {
+  background:
+    radial-gradient(circle at 30% 35%, #c8d8f3 0%, transparent 55%),
+    radial-gradient(circle at 70% 70%, #f5ddd0 0%, transparent 60%),
+    linear-gradient(135deg, #e8e1f0 0%, #fbe9dc 100%);
+}
+.proto-bg-switch__swatch--dark {
+  background:
+    radial-gradient(circle at 30% 35%, #2a3a5a 0%, transparent 55%),
+    radial-gradient(circle at 70% 70%, #4a2a3a 0%, transparent 60%),
+    linear-gradient(135deg, #131628 0%, #1a0d18 100%);
+}
+
+/* Theme overrides — applied via body class. `!important` because the
+   base `.desktop-bg` rule in styles.css uses a `background` shorthand
+   that otherwise wins via cascade order. */
+
+/* LIGHT — soft pastels (sky / peach / lavender / cream).
+   Reads as a calm daytime wallpaper. White Listener pills sit cleanly
+   on it without competing with the bar's frosted-dark wrap. */
+body.bg-light .desktop-bg {
+  background:
+    radial-gradient(ellipse at 18% 28%, #c8d8f3 0%, transparent 50%),
+    radial-gradient(ellipse at 82% 70%, #f5ddd0 0%, transparent 55%),
+    radial-gradient(ellipse at 50% 100%, #d8c5e8 0%, transparent 60%),
+    linear-gradient(135deg, #f0eaf2 0%, #e8e1f0 50%, #fbe9dc 100%) !important;
+  background-attachment: fixed !important;
+}
+
+/* DARK — deep ink palette (navy / aubergine / ember-warm base).
+   Same mesh anchor positions as the light theme so the surface
+   composition feels identical, just inverted in tone. */
+body.bg-dark .desktop-bg {
+  background:
+    radial-gradient(ellipse at 18% 28%, #1f2c4a 0%, transparent 50%),
+    radial-gradient(ellipse at 82% 70%, #3a1d28 0%, transparent 55%),
+    radial-gradient(ellipse at 50% 100%, #16142a 0%, transparent 60%),
+    linear-gradient(135deg, #0c0e1c 0%, #15101e 50%, #1f0c14 100%) !important;
+  background-attachment: fixed !important;
+}
+
+/* --------- View switcher chip — top-right, matches service UI ---------
+   White card on the same vertical rhythm as the status pill (top: 28px).
+   Single button by default ("Components"); when on the Components view it
+   morphs into "← Back" with a leading arrow icon. */
 .proto-chip {
   position: fixed;
   top: 28px;
@@ -88,37 +175,79 @@ body.mobile-mic-mode {
   z-index: 50;
   display: inline-flex;
   align-items: center;
-  gap: 2px;
-  padding: 4px;
-  background: #fff;
-  border-radius: 999px;
-  box-shadow: var(--shadow-sm);
+  padding: 0;
+  background: rgba(255, 255, 255, .96);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-radius: 10px;
+  box-shadow:
+    0 6px 16px rgba(0, 0, 0, .12),
+    0 1px 2px rgba(0, 0, 0, .06);
   font-family: var(--font);
-  font-size: 12px;
-  font-weight: 600;
-}
-.proto-chip__label {
-  padding: 0 10px 0 8px;
-  color: var(--grey-500);
-  font-size: 11px;
-  letter-spacing: .04em;
-  text-transform: uppercase;
 }
 .proto-chip__btn {
   border: 0;
   background: transparent;
-  color: var(--grey-700);
-  padding: 6px 12px;
-  border-radius: 999px;
+  color: #0B0C0C;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 14px;
+  border-radius: 10px;
   cursor: pointer;
-  font: inherit;
+  font: 700 12.5px / 16px "Lato", var(--font);
+  letter-spacing: -.01em;
   transition: background .15s ease, color .15s ease;
 }
-.proto-chip__btn:hover { background: var(--grey-100); }
-.proto-chip__btn.is-active {
-  background: #1671BE;
+.proto-chip__btn:hover { background: rgba(0, 0, 0, .04); }
+.proto-chip__btn:active { background: rgba(0, 0, 0, .08); }
+.proto-chip__btn:focus-visible {
+  outline: 2px solid #F9CB40;
+  outline-offset: 2px;
+}
+.proto-chip__arrow {
+  width: 12px;
+  height: 12px;
+  flex: 0 0 auto;
+}
+/* Build / variant sub-switcher. */
+.proto-chip__label {
+  padding: 0 6px 0 10px;
+  font: 700 11px / 16px "Lato", var(--font);
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: #6b6f78;
+}
+.proto-chip__btn--variant.is-active {
+  background: #0B0C0C;
   color: #fff;
 }
+.proto-chip__sep {
+  display: inline-block;
+  width: 1px;
+  height: 20px;
+  margin: 0 4px;
+  background: rgba(0, 0, 0, .08);
+}
+
+/* Layout sub-switcher + Components toggle.
+   Layout buttons sit in the chip with a small divider before the
+   Components toggle (which jumps to the components-gallery view). */
+.proto-chip__sep {
+  display: inline-block;
+  width: 1px;
+  height: 18px;
+  margin: 0 6px;
+  background: var(--grey-200, #e6e7ea);
+}
+.proto-chip__btn--layout.is-active {
+  background: #0B0C0C;
+  color: #fff;
+}
+/* When on Components, hide the layout switcher — it has no effect there. */
+body.view-components .proto-chip__label--layout,
+body.view-components .proto-chip__btn--layout,
+body.view-components .proto-chip__sep { display: none; }
 
 /* =====================================================================
    Replica toolbar — Figma Panel 2.0 + Ask + Menu (New) 3.1
@@ -226,33 +355,34 @@ body.mobile-mic-mode {
 .proto-tb-menu:active,
 .proto-tb-menu:focus-visible { box-shadow: inset 0 -4px 0 #F9CB40; }
 
-/* The CTS butterfly mark is taller than wide — scale to roughly match
-   the other icons visually (~22×22 inside the 32px container). */
-.proto-tb-icon--menu { padding: 5px; }
+/* The CTS butterfly mark is taller than wide — give it a bit more
+   visual weight than the other icons (slightly larger artwork). */
+.proto-tb-icon--menu { padding: 1px; }
 
 /* Drag handle — 16×24, 8 dots in a 2×4 grid.
    Sits on the wrapper colour (#034E8E) so it reads as a distinct grip zone
    rather than another button. No hover/active bg shift — just the cursor. */
+/* Drag handle — same 3 × 2 dot SVG as the Listener handle (#fic-grip-v)
+   so both surfaces share one visual language. The toolbar's blue
+   background + inset bottom shadow stays. */
 .proto-tb-handle {
   width: 16px;
-  display: grid;
-  grid-template-columns: repeat(2, 2px);
-  grid-template-rows: repeat(4, 2px);
-  align-content: center;
+  display: flex;
+  align-items: center;
   justify-content: center;
-  gap: 2px;
   padding: 0 5px;
   cursor: grab;
   background: #034E8E;
+  color: rgba(255, 255, 255, .75);
   /* Same inset bottom shading as buttons so the ridge line carries across */
   box-shadow: inset 0 -2px 0 rgba(0, 0, 0, .1);
 }
+.proto-tb-handle:hover { color: rgba(255, 255, 255, .92); }
 .proto-tb-handle:active { cursor: grabbing; }
-.proto-tb-handle span {
-  width: 2px;
-  height: 2px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, .75);
+.proto-tb-grip {
+  width: 12px;
+  height: 18px;
+  display: block;
 }
 
 /* =====================================================================
@@ -581,25 +711,65 @@ body.view-separate .proto-ai--attached { display: none; }
      Counter highlight   bg #E42045, text #F3F2F1   (≥3 detections)
    ===================================================================== */
 
-/* Default: hidden everywhere */
-.proto-feed { display: none; }
+/* Default: hidden everywhere. Lives on body. Inline-block so the outer box
+   sizes to its inner wrap (otherwise display:block stretches across the
+   viewport, breaks the drag clamp, and pulls the handle off-screen).
+   Initial position: bottom-centre via transform — JS converts to a fixed
+   right/bottom anchor on first reveal so subsequent state-driven resizes
+   keep the drag handle (right edge) in place. */
+.proto-listener {
+  display: none;
+  /* Centred by default. JS then computes a right + bottom pair from the
+     rendered rect on first paint (ensureListenerPositioned) so subsequent
+     drag anchors to the bottom-right. After that, the saved {r, b} in
+     localStorage wins.
 
-/* Hide other surfaces while Feed is active, and hide the Feed elsewhere.
-   The transcript panel (dev utility) is also hidden — the inline feed
-   replaces it in this direction. */
-body.view-feed .proto-ai--attached,
-body.view-feed .proto-ai--separate,
-body.view-feed #toolbarExpanded,
-body.view-feed #listenChip,
-body.view-feed #transcriptPanel { display: none !important; }
-body:not(.view-feed) .proto-feed { display: none; }
+     `right` + `bottom` is the anchor pair: when the wrap grows from idle
+     (44) to listening (76) the bottom edge stays put and the top moves
+     up. The Compact controls + handle sit at the bottom, so they don't
+     shift — exactly the expand-upward behaviour we want.
 
-/* Feed surface only renders while patient is open */
-body.view-feed:not(.patient-open) .proto-feed { display: none !important; }
-body.view-feed.patient-open .proto-feed { display: block; }
+     Marked !important so this default sticks until JS has positioned;
+     after that, inline styles win (no !important on inline). */
+  position: fixed !important;
+  /* Default placement: horizontally centred, 120 px below viewport
+     centre — sits well below the toolbar (which is dead-centre at
+     50%/50%) so the two don't overlay even after the bar expands
+     upward into the listening state. JS swaps this CSS-centring trick
+     for right/bottom inline anchors as soon as a position is pinned
+     (see `pinSurface` + `[data-positioned="1"]`). */
+  top: calc(50% + 120px) !important;
+  left: 50% !important;
+  right: auto;
+  bottom: auto;
+  transform: translate(-50%, -50%) !important;
+  /* Below modal-overlay (z 100 in styles.css), above the replica toolbar
+     (z 10). Plain int, no !important — modals must always cover. */
+  z-index: 12;
+}
+/* Once JS has positioned the bar (sets inline right/bottom), clear the
+   transform centring trick so right/bottom anchors resolve cleanly. */
+.proto-listener[data-positioned="1"] {
+  top: auto !important;
+  left: auto !important;
+  transform: none !important;
+}
+body.view-listener .proto-listener { display: inline-block !important; }
 
-/* Hide the replica toolbar wrap entirely in Feed view — Feed is the surface */
-body.view-feed .proto-toolbar { display: none !important; }
+/* Hide the original CoreApp ambient surfaces while Feed is active. The
+   replica TOOLBAR is intentionally kept visible — in Feed direction the
+   Toolbar and the Ambient controls are two separate, draggable elements. */
+body.view-listener .proto-ai--attached,
+body.view-listener .proto-ai--separate,
+body.view-listener #toolbarExpanded,
+body.view-listener #listenChip,
+body.view-listener #transcriptPanel,
+body.view-listener #notif { display: none !important; }
+body:not(.view-listener) .proto-listener { display: none; }
+
+/* Feed bar is always visible in Feed direction — idle by default. Opening
+   the patient auto-starts the session (see reconcileListenerPatientGate). */
+body.view-listener .proto-listener { display: inline-block; }
 
 /* ----- Surface frame -----
    Per the latest Figma: the outer wrap is a translucent dark layer (the
@@ -610,10 +780,10 @@ body.view-feed .proto-toolbar { display: none !important; }
    primer (medium), and active (wide). The wrap can grow past min-width if
    content demands, but the min anchors the transition so the surface
    expands/contracts fluidly instead of snapping. */
-.proto-feed__wrap {
+.proto-listener__wrap {
   display: inline-flex;
   align-items: stretch;
-  background: rgba(11, 12, 12, .36);
+  background: rgba(11, 12, 12, .66);
   -webkit-backdrop-filter: blur(8px);
           backdrop-filter: blur(8px);
   border-radius: 12px;
@@ -624,123 +794,341 @@ body.view-feed .proto-toolbar { display: none !important; }
   user-select: none;
   font-family: "Lato", var(--font);
   color: #0B0C0C;
+  /* min-width is set per-state below so the wrap can smoothly *animate*
+     between idle (no min) and active (≈460 px) — the right edge stays
+     pinned (CSS `right: 25vw`), so the bar appears to glide leftward
+     when expanding and collapse rightward when contracting. */
   transition:
-    min-width .22s cubic-bezier(.22, .9, .3, 1),
-    min-height .22s cubic-bezier(.22, .9, .3, 1),
+    min-width .28s cubic-bezier(.22, .9, .3, 1),
+    min-height .28s cubic-bezier(.22, .9, .3, 1),
+    height .28s cubic-bezier(.22, .9, .3, 1),
+    max-height .28s cubic-bezier(.22, .9, .3, 1),
     background .2s ease;
 }
-body.proto-idle.view-feed .proto-feed__wrap     { min-width: 174px; min-height: 48px; }
-body.proto-primer.view-feed .proto-feed__wrap   { min-width: 300px; min-height: 94px; }
-body.proto-starting.view-feed .proto-feed__wrap,
-body.proto-listening.view-feed .proto-feed__wrap,
-body.proto-paused.view-feed .proto-feed__wrap,
-body.proto-stopping.view-feed .proto-feed__wrap { min-width: 320px; min-height: 94px; }
-.proto-feed__container {
+/* Active states share a min-width floor — keeps the bar steady across
+   listening ↔ paused ↔ stopping (no twitchy resizing during the brief
+   stopping transition). */
+body.proto-starting.view-listener .proto-listener__wrap,
+body.proto-listening.view-listener .proto-listener__wrap,
+body.proto-paused.view-listener .proto-listener__wrap,
+body.proto-stopping.view-listener .proto-listener__wrap {
+  min-width: 460px;
+}
+/* Idle has no floor — the wrap collapses to fit the CTA + Settings. */
+body.proto-idle.view-listener .proto-listener__wrap { min-width: 0; }
+.proto-listener__container {
   display: flex;
-  flex-direction: column;
-  gap: 6px;
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
 }
 
 /* ----- Idle vs Active row visibility per state -----
-   The inactive row is `display: none` so the wrap auto-sizes to the row
-   currently in play (174 px in idle, 300+ px in active). A short opacity
-   + translate fade-in on the entering row keeps the swap feeling fluid
-   without keeping a hidden row holding the layout open. */
-.proto-feed__idle,
-.proto-feed__active,
-.proto-feed__primer { display: none; }
+   Single horizontal row across all states. The inactive row is
+   `display: none` so the wrap auto-sizes to the row currently in play;
+   a short fade-in keeps swaps feeling fluid. */
+.proto-listener__idle,
+.proto-listener__active,
+.proto-listener__primer { display: none; }
 
-body.proto-idle.view-feed .proto-feed__idle {
+body.proto-idle.view-listener .proto-listener__idle {
   display: flex;
   align-items: center;
   gap: 4px;
-  animation: proto-feed-fade-in .12s ease both;
+  animation: proto-listener-fade-in .22s cubic-bezier(.22, .9, .3, 1) both;
 }
-body.proto-primer.view-feed .proto-feed__primer {
+body.proto-primer.view-listener .proto-listener__primer {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  align-items: center;
   gap: 6px;
-  animation: proto-feed-fade-in .12s ease both;
+  animation: proto-listener-fade-in .22s cubic-bezier(.22, .9, .3, 1) both;
 }
 /* `starting` shows the ACTIVE row (not idle) so primer → starting → listening
    no longer flashes the compact Listen pill mid-transition. The active row's
    contents (Stop pill / timer / breathing logo) appear immediately on Start,
    and the 200 ms machine timer is just a brief warmup, visually identical to
    the listening state. */
-body.proto-starting.view-feed .proto-feed__active,
-body.proto-listening.view-feed .proto-feed__active,
-body.proto-paused.view-feed .proto-feed__active,
-body.proto-stopping.view-feed .proto-feed__active {
+body.proto-starting.view-listener .proto-listener__active,
+body.proto-listening.view-listener .proto-listener__active,
+body.proto-paused.view-listener .proto-listener__active,
+body.proto-stopping.view-listener .proto-listener__active {
   display: flex;
-  flex-direction: column;
-  gap: 6px;
-  animation: proto-feed-fade-in .12s ease both;
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+  animation: proto-listener-fade-in .22s cubic-bezier(.22, .9, .3, 1) both;
 }
-@keyframes proto-feed-fade-in {
-  from { opacity: 0; transform: translateY(1px); }
-  to   { opacity: 1; transform: none; }
+@keyframes proto-listener-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 
 /* In-state cross-fades — smooth the listening ↔ paused switch by giving
    the elements that change a brief opacity/colour transition. */
-.proto-feed__status-label,
-.proto-feed__primary-ic,
-.proto-feed__primary-rec,
-.proto-feed__pause,
-.proto-feed__stop-paused,
-.proto-feed__counter {
-  transition: background .18s ease, color .18s ease, opacity .18s ease;
+.proto-listener__status-label,
+.proto-listener__primary-ic,
+.proto-listener__primary-rec,
+.proto-listener__pause,
+.proto-listener__stop-paused,
+.proto-listener__counter {
+  transition:
+    background .22s cubic-bezier(.22, .9, .3, 1),
+    color      .22s cubic-bezier(.22, .9, .3, 1),
+    opacity    .22s cubic-bezier(.22, .9, .3, 1),
+    transform  .14s cubic-bezier(.22, .9, .3, 1);
 }
-.proto-feed__logo {
+.proto-listener__logo {
   transition: color .25s ease;
 }
 
-/* ----- Idle: compact Listen pill + Settings gear ----- */
-.proto-feed__listen {
+/* ----- Idle: compact Listen pill (PURPLE CTA) + Settings gear -----
+   Darker brand-purple gradient. Same stop layout as Figma but lightness
+   pulled down ~12 % so the white shimmer reads as movement rather than
+   blending into the base. Squircle-ish corners (radius 10) and a slight
+   negative letter-spacing tighten the label. */
+.proto-listener__listen {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   height: 40px;
-  padding: 0 18px 0 14px;
-  background: #fff;
+  padding: 0 14px;
+  background: linear-gradient(195.5deg, #6E12C7 15%, #9C0EB6 70%, #3D0A66 110%);
   border: 0;
-  border-radius: 8px;
+  border-radius: 10px;
   cursor: pointer;
-  color: #0B0C0C;
-  font: 800 14px / 16px "Lato", var(--font);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, .06);
-  transition: background .12s ease;
+  color: #fff;
+  font: 800 16px / 20px "Lato", var(--font);
+  letter-spacing: -.02em;
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, .14),
+    0 0 15px 0 rgba(150, 14, 200, .33);
+  transition: filter .18s ease, transform .08s ease, box-shadow .18s ease;
 }
-.proto-feed__listen:hover { background: #f0eeec; }
-.proto-feed__listen:active { transform: translateY(1px); }
-.proto-feed__listen-label { letter-spacing: 0; }
-/* Record-ready outline ring — the small red circle on the idle Listen pill */
-.proto-feed__rec-outline {
-  width: 14px;
-  height: 14px;
+.proto-listener__listen:hover {
+  filter: brightness(1.1);
+  box-shadow:
+    0 2px 4px rgba(0, 0, 0, .16),
+    0 0 22px 0 rgba(150, 14, 200, .48);
+}
+.proto-listener__listen:active {
+  transform: translateY(1px);
+  filter: brightness(.92);
+}
+.proto-listener__listen-label { letter-spacing: -.02em; }
+/* Record-ready outline ring — white ring on the purple Listen pill.
+   Foreground flipped to match the new dark background (per the
+   colour-flip rule). The Resume button uses a separate
+   `.proto-listener__primary-rec` rule (still black on white). */
+.proto-listener__rec-outline {
+  width: 18px;
+  height: 18px;
   border-radius: 50%;
-  border: 2px solid #E42045;
+  border: 2.5px solid #fff;
   background: transparent;
   flex: 0 0 auto;
   display: inline-block;
 }
 
+/* ----- Idle: combined Listen + Lang CTA -----
+   Per Figma node 13459:39419: 160 × 36 capsule with a vertical purple
+   gradient, white sheen shimmer on top, divided by a 2-px white-25%
+   line into two click areas. NOTE: no `overflow: hidden` on the
+   capsule — the language dropdown menu lives inside and needs to
+   escape the bounds. The shimmer's ::before has its own border-radius
+   so it's still clipped to the rounded shape via background-clip. */
+.proto-listener__cta {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  width: 160px;
+  height: 36px;
+  border-radius: 8px;
+  flex: 0 0 auto;
+  background: linear-gradient(180deg, #C211E5 0.48%, #C55DE4 97.6%);
+  box-shadow:
+    0 0 15px 0 rgba(182, 20, 233, .33),
+    0 1px 2px rgba(0, 0, 0, .12);
+  transition: background .22s ease, box-shadow .22s ease;
+}
+/* Hover — darker hue of the same gradient + stronger glow. */
+.proto-listener__cta:hover {
+  background: linear-gradient(180deg, #A40FC1 0.48%, #A347C7 97.6%);
+  box-shadow:
+    0 0 20px 0 rgba(182, 20, 233, .45),
+    0 1px 3px rgba(0, 0, 0, .16);
+}
+/* White sheen shimmer — wider, multi-stop blend so the highlight
+   ramps in/out smoothly rather than as a hard band. Slower loop (8 s)
+   so it reads as "alive" but never anxious. */
+.proto-listener__cta::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 8px;       /* clips the sheen to the rounded shape */
+  pointer-events: none;
+  background: linear-gradient(
+    115deg,
+    rgba(255, 255, 255, 0)    0%,
+    rgba(255, 255, 255, 0)    20%,
+    rgba(255, 255, 255, .06)  35%,
+    rgba(255, 255, 255, .18)  46%,
+    rgba(255, 255, 255, .28)  50%,
+    rgba(255, 255, 255, .18)  54%,
+    rgba(255, 255, 255, .06)  65%,
+    rgba(255, 255, 255, 0)    80%,
+    rgba(255, 255, 255, 0)    100%
+  );
+  background-size: 260% 100%;
+  background-position: 130% 0;
+  animation: proto-listener-listen-sheen 8s ease-in-out infinite;
+}
+/* Both halves: transparent (gradient shows through), white text, same
+   give as other listener buttons (1 px translateY on press). */
+.proto-listener__cta-listen,
+.proto-listener__cta-lang {
+  position: relative;       /* sits above the ::before sheen */
+  z-index: 1;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background .14s ease, transform .08s ease;
+}
+.proto-listener__cta-listen:hover,
+.proto-listener__cta-lang:hover { background: rgba(0, 0, 0, .15); }
+.proto-listener__cta-listen:active,
+.proto-listener__cta-lang:active { transform: translateY(1px); }
+/* Listen half — Lato ExtraBold 16/20, white. */
+.proto-listener__cta-listen {
+  gap: 8px;
+  flex: 1 1 auto;
+  padding: 0 8px 0 10px;
+  font: 800 16px / 20px "Lato", var(--font);
+  letter-spacing: -.02em;
+}
+/* AI sparkles icon — mask-based so the real Figma asset is the icon
+   shape; `background-color` tints it. White on the purple CTA; the
+   transcript-modal variant (`.session-ai-sparkle`) reuses the same
+   mask with a gradient background. */
+.proto-listener__listen-ic {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
+  display: inline-block;
+  background-color: #fff;
+  -webkit-mask: url('assets/figma-icons/fluent-sparkle.svg') no-repeat center / contain;
+          mask: url('assets/figma-icons/fluent-sparkle.svg') no-repeat center / contain;
+}
+/* Lang half — short code (EN/ES/UK) + chevron. 14/16. */
+.proto-listener__cta-lang {
+  gap: 4px;
+  flex: 0 0 auto;
+  padding: 0 6px 0 8px;
+  font: 800 14px / 16px "Lato", var(--font);
+  letter-spacing: -.02em;
+}
+.proto-listener__cta-lang[aria-expanded="true"] {
+  background: rgba(0, 0, 0, .18);
+}
+.proto-listener__cta-divider {
+  position: relative;
+  z-index: 1;
+  width: 2px;
+  height: 20px;
+  align-self: center;
+  background: rgba(255, 255, 255, .25);
+  flex: 0 0 auto;
+}
+
+/* Lang dropdown wrapper inside the CTA — flex item, no positioning of
+   its own (the menu is positioned against .proto-listener__cta). */
+.proto-listener__cta .proto-listener__lang {
+  display: flex;
+  align-items: stretch;
+  position: static;
+  flex: 0 0 auto;
+}
+.proto-listener__lang-value { white-space: nowrap; }
+.proto-listener__lang-chev {
+  width: 12px;
+  height: 12px;
+  color: #fff;
+  flex: 0 0 auto;
+  transition: transform .15s ease;
+}
+.proto-listener__cta-lang[aria-expanded="true"] .proto-listener__lang-chev {
+  transform: rotate(180deg);
+}
+
+/* Dropdown menu — anchors to the right edge of the CTA (where the lang
+   half sits). Same white-card style as the Mic Settings popover. */
+.proto-listener__lang-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  left: auto;
+  min-width: 180px;
+  background: #fff;
+  border-radius: 10px;
+  box-shadow:
+    0 12px 28px rgba(0, 0, 0, .18),
+    0 2px 6px rgba(0, 0, 0, .08);
+  padding: 6px 0;
+  z-index: 60;
+  animation: proto-listener-fade-in .12s ease both;
+}
+.proto-listener__lang-menu[hidden] { display: none; }
+.proto-listener__lang-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 9px 14px;
+  background: transparent;
+  border: 0;
+  text-align: left;
+  cursor: pointer;
+  color: #0B0C0C;
+  font: 600 14px / 20px "Lato", var(--font);
+  transition: background .12s ease;
+}
+.proto-listener__lang-option:hover { background: rgba(0, 0, 0, .04); }
+.proto-listener__lang-option:active { background: rgba(0, 0, 0, .08); }
+.proto-listener__lang-option.is-selected {
+  font-weight: 800;
+}
+.proto-listener__lang-option.is-selected::before {
+  content: "✓";
+  color: #1671BE;
+  font-weight: 800;
+  margin-right: -2px;
+}
+.proto-listener__lang-option:not(.is-selected)::before {
+  content: "";
+  width: 14px;
+  display: inline-block;
+}
+
 /* ----- Primer state — "Open patient" prompt with language confirmation ----- */
-.proto-feed__primer-row {
+.proto-listener__primer-row {
   display: flex;
   align-items: center;
   gap: 6px;
 }
-.proto-feed__primer-row--lang {
+.proto-listener__primer-row--lang {
   height: 40px;
   padding-left: 4px;
 }
-.proto-feed__primer-row--actions {
+.proto-listener__primer-row--actions {
   gap: 6px;
 }
 
 /* "Patient speaks" label — white text on the dark wrap */
-.proto-feed__primer-lead {
+.proto-listener__primer-lead {
   color: rgba(255, 255, 255, .92);
   font: 700 13px / 16px "Lato", var(--font);
   flex: 0 0 auto;
@@ -749,7 +1137,7 @@ body.proto-stopping.view-feed .proto-feed__active {
 /* Language pill — white background, dropdown look. The native <select>
    sits inside but its native chrome is hidden; we render a globe icon and
    a custom chevron either side of the text for a "pill" look. */
-.proto-feed__primer-lang {
+.proto-listener__primer-lang {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -765,20 +1153,20 @@ body.proto-stopping.view-feed .proto-feed__active {
   flex: 0 0 auto;
   transition: background .12s ease;
 }
-.proto-feed__primer-lang:hover { background: #f5f3f1; }
-.proto-feed__primer-lang-ic {
+.proto-listener__primer-lang:hover { background: #f5f3f1; }
+.proto-listener__primer-lang-ic {
   width: 14px;
   height: 14px;
   color: #4a5260;
   flex: 0 0 auto;
 }
-.proto-feed__primer-lang-chev {
+.proto-listener__primer-lang-chev {
   width: 10px;
   height: 10px;
   color: #4a5260;
   flex: 0 0 auto;
 }
-.proto-feed__primer-lang-select {
+.proto-listener__primer-lang-select {
   /* Native select — hide chrome, blend into pill. The option text renders
      natively in line with our globe + chevron siblings. */
   border: 0;
@@ -794,16 +1182,16 @@ body.proto-stopping.view-feed .proto-feed__active {
   /* Sized to its content so the pill stays compact */
   width: auto;
 }
-.proto-feed__primer-lang-select::-ms-expand { display: none; }
-.proto-feed__primer-lang-select:focus-visible {
+.proto-listener__primer-lang-select::-ms-expand { display: none; }
+.proto-listener__primer-lang-select:focus-visible {
   outline: 2px solid #1671BE;
   outline-offset: 2px;
   border-radius: 4px;
 }
 
 /* Action row buttons */
-.proto-feed__primer-start,
-.proto-feed__primer-skip {
+.proto-listener__primer-start,
+.proto-listener__primer-skip {
   display: inline-flex;
   align-items: center;
   height: 40px;
@@ -812,17 +1200,18 @@ body.proto-stopping.view-feed .proto-feed__active {
   border-radius: 8px;
   cursor: pointer;
   color: #0B0C0C;
-  font: 800 14px / 16px "Lato", var(--font);
+  /* Primary label per Figma — 800 16 / 20 */
+  font: 800 16px / 20px "Lato", var(--font);
   box-shadow: 0 1px 2px rgba(0, 0, 0, .06);
   transition: background .12s ease, transform .08s ease;
 }
-.proto-feed__primer-start:hover,
-.proto-feed__primer-skip:hover { background: #f5f3f1; }
-.proto-feed__primer-start:active,
-.proto-feed__primer-skip:active { transform: translateY(1px); }
+.proto-listener__primer-start:hover,
+.proto-listener__primer-skip:hover { background: #f5f3f1; }
+.proto-listener__primer-start:active,
+.proto-listener__primer-skip:active { transform: translateY(1px); }
 
 /* Primary CTA — wide pill with record-outline icon */
-.proto-feed__primer-start {
+.proto-listener__primer-start {
   flex: 1 1 auto;
   gap: 10px;
   padding: 0 18px 0 14px;
@@ -830,63 +1219,79 @@ body.proto-stopping.view-feed .proto-feed__active {
   min-width: 168px;
 }
 /* Secondary — text-only, compact */
-.proto-feed__primer-skip {
+.proto-listener__primer-skip {
   flex: 0 0 auto;
   padding: 0 16px;
   color: #4a5260;
   font-weight: 600;
 }
 
-.proto-feed__logo {
+/* Brand mark — aligned with the CTA's purple gradient. */
+.proto-listener__logo {
   display: inline-flex;
-  width: 24px;
-  height: 24px;
-  color: #1671BE;
+  width: 26px;
+  height: 26px;
+  color: #944FCF;
   flex: 0 0 auto;
 }
-.proto-feed__logo svg { width: 100%; height: 100%; fill: currentColor; }
-.proto-feed__logo--lg { width: 24px; height: 24px; }
+.proto-listener__logo svg { width: 100%; height: 100%; fill: currentColor; }
+.proto-listener__logo--lg { width: 26px; height: 26px; }
 
-/* Logo stays brand-blue across all states. While listening, a subtle
-   shimmer wave shifts the hue + brightness slightly — gives a sense of
-   activity without changing what the logo "means" (still the brand mark).
-   Hue rotation is small (about 18°) so the colour stays recognisably the
-   brand blue; the brightness lift adds a gentle "glow on the crest" feel. */
-.proto-feed__logo svg {
+/* Active-state pulse — cycles through the full purple → magenta → pink
+   palette with subtle scale variation so the logo feels genuinely alive
+   while the session is running. Long-form keyframes for the broader
+   colour journey. */
+.proto-listener__logo svg {
   transform-origin: center;
-  filter: hue-rotate(0deg) brightness(1);
+  will-change: transform, color;
 }
-@keyframes proto-feed-shimmer {
-  0%, 100% { filter: hue-rotate(0deg)   brightness(1)    saturate(1); }
-  50%      { filter: hue-rotate(18deg)  brightness(1.18) saturate(1.08); }
+@keyframes proto-listener-logo-pulse {
+  0%   { color: #944FCF; transform: scale(1.00); }
+  18%  { color: #C211E5; transform: scale(1.08); }
+  36%  { color: #FF5BD7; transform: scale(1.04); }
+  52%  { color: #B040E3; transform: scale(1.10); }
+  70%  { color: #670DBA; transform: scale(1.06); }
+  86%  { color: #8A3CD0; transform: scale(1.02); }
+  100% { color: #944FCF; transform: scale(1.00); }
 }
-body.proto-listening.view-feed .proto-feed__active .proto-feed__logo svg {
-  animation: proto-feed-shimmer 2.2s ease-in-out infinite;
+body.proto-starting.view-listener .proto-listener__active .proto-listener__logo svg,
+body.proto-listening.view-listener .proto-listener__active .proto-listener__logo svg,
+body.proto-paused.view-listener .proto-listener__active .proto-listener__logo svg,
+body.proto-stopping.view-listener .proto-listener__active .proto-listener__logo svg {
+  animation: proto-listener-logo-pulse 3.6s ease-in-out infinite;
 }
 
-/* Settings gear button (used in idle + active) — white pill on the dark wrap */
-.proto-feed__settings {
-  width: 40px;
-  height: 40px;
-  background: #fff;
+/* Settings button — de-accented: transparent on the dark wrap, white icon.
+   Hover darkens the wrap further (no pill background introduced). */
+.proto-listener__settings {
+  width: 36px;
+  height: 36px;
+  background: transparent;
   border: 0;
-  border-radius: 8px;
+  border-radius: 10px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  color: #0B0C0C;
-  transition: background .12s ease;
+  color: rgba(255, 255, 255, .9);
+  transition: background .14s ease, color .14s ease, transform .08s ease;
   flex: 0 0 auto;
   position: relative;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, .06);
+  box-shadow: none;
 }
-.proto-feed__settings:hover { background: #f5f3f1; }
-.proto-feed__settings .proto-feed__ic { width: 22px; height: 22px; }
+.proto-listener__settings:hover {
+  background: rgba(0, 0, 0, .28);
+  color: #fff;
+}
+.proto-listener__settings:active {
+  background: rgba(0, 0, 0, .4);
+  transform: translateY(1px);
+}
+.proto-listener__settings .proto-listener__ic { width: 22px; height: 22px; }
 
 /* Settings pip — for issue/permission states */
-.proto-feed__settings.is-warning::after,
-.proto-feed__settings.is-error::after {
+.proto-listener__settings.is-warning::after,
+.proto-listener__settings.is-error::after {
   content: "";
   position: absolute;
   top: 6px;
@@ -896,91 +1301,107 @@ body.proto-listening.view-feed .proto-feed__active .proto-feed__logo svg {
   border-radius: 50%;
   box-shadow: 0 0 0 2px #F3F2F1;
 }
-.proto-feed__settings.is-warning::after { background: #f59e0b; }
-.proto-feed__settings.is-error::after { background: #E42045; }
+.proto-listener__settings.is-warning::after { background: #f59e0b; }
+.proto-listener__settings.is-error::after { background: #E42045; }
 
-.proto-feed__ic { display: inline-flex; line-height: 0; }
-.proto-feed__ic svg { width: 100%; height: 100%; }
+.proto-listener__ic { display: inline-flex; line-height: 0; }
+.proto-listener__ic svg { width: 100%; height: 100%; }
 
 /* ----- Active: Session row (clickable) -----
-   White pill sitting on the dark translucent wrap. Hover stays light. */
-.proto-feed__session {
+   White pill sitting on the dark translucent wrap. `--session-bg`
+   drives both the pill background and the status-label fade gradient
+   so they stay in sync on hover/active. */
+.proto-listener__session {
+  --session-bg: #fff;
   display: flex;
   align-items: center;
   gap: 8px;
-  width: 300px;
-  height: 40px;
+  width: 220px;
+  flex: 0 0 220px;
+  height: 36px;
   padding: 0 8px 0 12px;
-  background: #fff;
+  background: var(--session-bg);
   border: 0;
-  border-radius: 8px;
+  border-radius: 10px;
   cursor: pointer;
   color: #0B0C0C;
   text-align: left;
-  transition: background .12s ease;
+  transition: background .14s ease;
   box-shadow: 0 1px 2px rgba(0, 0, 0, .06);
 }
-.proto-feed__session:hover { background: #f5f3f1; }
-.proto-feed__session:active { background: #ebe7e3; }
+/* Hover: warm-purple tint so the AI surface signals it's interactive. */
+.proto-listener__session:hover  { --session-bg: #f3edfb; }
+.proto-listener__session:active { --session-bg: #e8dff7; }
 
 /* Transcript area — two layers stacked:
-     - .proto-feed__transcript-text flows from right to left, right-anchored
-     - .proto-feed__status-label sits on top of it on the LEFT with a white
+     - .proto-listener__transcript-text flows from right to left, right-anchored
+     - .proto-listener__status-label sits on top of it on the LEFT with a white
        gradient as its background, fading the transcript behind it.
    Result: label is always readable; transcript words become visible
    to the right of the label's gradient fall-off and slide left as they
    come in. */
-.proto-feed__transcript {
+/* Figma typography (Spec node 13454:37467):
+   - Transcript text:  Lato ExtraBold 14 / 16, #505A5F
+   - Status label:     Lato ExtraBold 12 / 16, #505A5F  (smaller than transcript)
+   - Status sits over the transcript with a white fade — so the label reads
+     clearly while the transcript bleeds in/out behind it. */
+.proto-listener__transcript {
   flex: 1 1 auto;
   min-width: 0;
-  height: 16px;
+  /* Span the full pill height so the status-label fade can cover it
+     edge-to-edge; the actual transcript text is vertically centred via
+     its own absolute position. */
+  align-self: stretch;
   position: relative;
   overflow: hidden;
   font: 800 14px / 16px "Lato", var(--font);
-  color: #0B0C0C;
+  color: #505A5F;
 }
-.proto-feed__transcript-text {
+.proto-listener__transcript-text {
   position: absolute;
   right: 0;
-  top: 0;
-  height: 100%;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 16px;
   display: flex;
   align-items: center;
   white-space: nowrap;
+  color: #505A5F;
+  font-weight: 800;
 }
-.proto-feed__status-label {
+.proto-listener__status-label {
   display: none;
   position: absolute;
   inset: 0 auto 0 0;
   align-items: center;
-  padding-right: 28px;
-  font: 800 14px / 16px "Lato", var(--font);
-  color: #0B0C0C;
-  /* White-to-transparent gradient: label sits on opaque white left, fades
-     into transparent on the right so transcript text underneath becomes
-     visible past the fall-off. The pill bg is white so the gradient
-     blends seamlessly with the session row. */
+  padding-right: 36px;
+  font: 800 12px / 16px "Lato", var(--font);
+  color: #505A5F;
+  /* Fade uses the session pill's bg variable so the gradient stays in
+     sync with hover / active states (no more white strip on a tinted
+     pill). Spans the full height of the transcript area, which now
+     stretches edge-to-edge of the pill. */
   background: linear-gradient(
     to right,
-    #fff 0%,
-    #fff 50%,
+    var(--session-bg, #fff) 0%,
+    var(--session-bg, #fff) 62%,
     rgba(255, 255, 255, 0) 100%
   );
   z-index: 2;
 }
 /* "Listening…" — shown while actively listening, alongside the transcript */
-body.proto-listening.view-feed .proto-feed__status-label--listening { display: flex; }
+body.proto-listening.view-listener .proto-listener__status-label--listening { display: flex; }
 /* "Paused" — shown in paused state; transcript text is hidden per spec */
-body.proto-paused.view-feed .proto-feed__status-label--paused { display: flex; }
-body.proto-paused.view-feed .proto-feed__transcript-text { display: none; }
+body.proto-paused.view-listener .proto-listener__status-label--paused { display: flex; }
+body.proto-paused.view-listener .proto-listener__transcript-text { display: none; }
 /* In paused only "Paused" shows — clean background (no fade needed) */
-body.proto-paused.view-feed .proto-feed__status-label--paused {
+body.proto-paused.view-listener .proto-listener__status-label--paused {
   background: transparent;
   padding-right: 0;
 }
 
 /* ----- Counter chip ----- */
-.proto-feed__counter {
+.proto-listener__counter {
   flex: 0 0 auto;
   width: 28px;
   height: 28px;
@@ -994,112 +1415,137 @@ body.proto-paused.view-feed .proto-feed__status-label--paused {
   text-align: center;
   transition: background .15s ease, color .15s ease;
 }
-/* Neutral / empty state (count = 0) — soft grey, not pink */
-.proto-feed__counter--empty,
-.proto-feed__counter:empty {
-  background: #ECEAE8;
-  color: #b4b7bb;
+/* Empty state — hide the chip entirely. The session pill's transcript
+   area expands to fill the freed space. */
+.proto-listener__counter--empty,
+.proto-listener__counter:empty {
+  display: none;
 }
-.proto-feed__counter.is-high {
+.proto-listener__counter.is-high {
   background: #E42045;
   color: #F3F2F1;
 }
 
 /* ----- Controls row ----- */
-.proto-feed__controls {
+.proto-listener__controls {
   display: flex;
   align-items: center;
-  gap: 6px;
-  width: 300px;
+  gap: 4px;
+  flex: 0 0 auto;
 }
 
 /* Per-state button visibility on the controls row.
    Display toggle is instant, but a short fade-in animation on entry softens
    the appearance. The wide primary pill (flex: 1) reflows to absorb the
    newly-vacated/occupied 40px slot. */
-.proto-feed__pause,
-.proto-feed__stop-paused { display: none; }
-body.proto-listening.view-feed .proto-feed__pause {
+.proto-listener__pause,
+.proto-listener__stop-paused { display: none; }
+body.proto-listening.view-listener .proto-listener__pause {
   display: inline-flex;
-  animation: proto-feed-fade-in .12s ease both;
+  animation: proto-listener-fade-in .12s ease both;
 }
-body.proto-paused.view-feed .proto-feed__stop-paused {
+body.proto-paused.view-listener .proto-listener__stop-paused {
   display: inline-flex;
-  animation: proto-feed-fade-in .12s ease both;
+  animation: proto-listener-fade-in .12s ease both;
 }
-/* During the brief stopping fade-out, hide the secondary action buttons
-   so the primary "Stopping…" pill is the focal element. */
-body.proto-stopping.view-feed .proto-feed__pause,
-body.proto-stopping.view-feed .proto-feed__stop-paused { display: none; }
+/* Stopping — keep the listening layout so the bar doesn't reflow into
+   a narrower variant for the 180 ms transition (jarring resize). Pause
+   stays in place but inert; the Stop pill is still the actionable
+   focal element. */
+body.proto-stopping.view-listener .proto-listener__pause {
+  display: inline-flex;
+  pointer-events: none;
+  opacity: .55;
+}
+body.proto-stopping.view-listener .proto-listener__stop-paused { display: none; }
 /* During starting, neither pause nor stop-paused belongs (we're warming up),
    keep them hidden until listening starts. */
-body.proto-starting.view-feed .proto-feed__pause,
-body.proto-starting.view-feed .proto-feed__stop-paused { display: none; }
+body.proto-starting.view-listener .proto-listener__pause,
+body.proto-starting.view-listener .proto-listener__stop-paused { display: none; }
 
-.proto-feed__pause,
-.proto-feed__stop-paused {
-  width: 40px;
-  height: 40px;
+.proto-listener__pause,
+.proto-listener__stop-paused {
+  width: 36px;
+  height: 36px;
   background: #fff;
   border: 0;
-  border-radius: 8px;
+  border-radius: 10px;
   cursor: pointer;
   color: #0B0C0C;
   align-items: center;
   justify-content: center;
   flex: 0 0 auto;
   box-shadow: 0 1px 2px rgba(0, 0, 0, .06);
-  transition: background .12s ease;
+  transition: background .14s ease, transform .08s ease, box-shadow .14s ease;
 }
-.proto-feed__pause:hover,
-.proto-feed__stop-paused:hover { background: #f0eeec; }
-.proto-feed__pause .proto-feed__ic,
-.proto-feed__stop-paused .proto-feed__ic { width: 18px; height: 18px; }
+.proto-listener__pause:hover,
+.proto-listener__stop-paused:hover { background: #f0eeec; }
+.proto-listener__pause:active,
+.proto-listener__stop-paused:active { transform: translateY(1px); }
+.proto-listener__pause .proto-listener__ic,
+.proto-listener__stop-paused .proto-listener__ic { width: 20px; height: 20px; color: #0B0C0C; }
 
-/* Primary pill — Stop while listening / Resume while paused. Wide button. */
-.proto-feed__primary {
-  flex: 1 1 auto;
+/* Primary pill — Stop while listening / Resume while paused.
+   Per Figma horizontal Spec: fixed 140 wide. */
+.proto-listener__primary {
+  flex: 0 0 140px;
+  width: 140px;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  height: 40px;
-  padding: 0 12px;
+  gap: 8px;
+  height: 36px;
+  padding: 0 8px;
   background: #fff;
   border: 0;
-  border-radius: 8px;
+  border-radius: 10px;
   cursor: pointer;
   color: #0B0C0C;
-  font: 800 14px / 16px "Lato", var(--font);
+  /* Figma "Paragraph/Mobile/Body • Bold": 800 16 / 20 */
+  font: 800 16px / 20px "Lato", var(--font);
+  letter-spacing: -.02em;
   box-shadow: 0 1px 2px rgba(0, 0, 0, .06);
-  transition: background .12s ease;
+  transition: background .14s ease, transform .08s ease, box-shadow .14s ease;
   position: relative;
 }
-.proto-feed__primary:hover { background: #f0eeec; }
-/* Stop icon (visible during listening) — filled red square */
-.proto-feed__primary-ic { width: 20px; height: 20px; display: inline-flex; color: #E42045; flex: 0 0 auto; }
-.proto-feed__primary-ic svg { width: 100%; height: 100%; fill: currentColor; }
-/* Record-outline ring (visible during paused) — red circle outline */
-.proto-feed__primary-rec {
-  width: 14px;
-  height: 14px;
+.proto-listener__primary:hover { background: #f0eeec; }
+.proto-listener__primary:active { transform: translateY(1px); }
+.proto-listener__primary-ic { width: 20px; height: 20px; display: inline-flex; color: #0B0C0C; flex: 0 0 auto; }
+.proto-listener__primary-ic svg { width: 100%; height: 100%; fill: currentColor; }
+/* Record-outline ring (black) — appears in PAUSED to indicate ready-to-resume */
+.proto-listener__primary-rec {
+  width: 18px;
+  height: 18px;
   border-radius: 50%;
-  border: 2px solid #E42045;
+  border: 2.5px solid #0B0C0C;
   background: transparent;
   flex: 0 0 auto;
   display: none;
 }
-body.proto-paused.view-feed .proto-feed__primary-ic--stop { display: none; }
-body.proto-paused.view-feed .proto-feed__primary-rec { display: inline-block; }
-.proto-feed__primary-label { flex: 0 0 auto; }
-.proto-feed__primary-time {
+/* Primary morph: Stop pill (listening) ↔ Resume pill (paused).
+   The same button stays in place; only the icon + label spans swap. */
+.proto-listener__primary-label { flex: 0 0 auto; }
+.proto-listener__primary-label--stop,
+.proto-listener__primary-label--resume { display: none; }
+body.proto-starting.view-listener .proto-listener__primary-label--stop,
+body.proto-listening.view-listener .proto-listener__primary-label--stop,
+body.proto-stopping.view-listener .proto-listener__primary-label--stop { display: inline-flex; }
+body.proto-paused.view-listener .proto-listener__primary-label--resume { display: inline-flex; }
+body.proto-paused.view-listener .proto-listener__primary-ic--stop { display: none; }
+body.proto-paused.view-listener .proto-listener__primary-rec { display: inline-block; }
+/* Elapsed time meta — Figma "Paragraph/Mobile/Body Small": 400 14 / 16, #868E93 */
+.proto-listener__primary-time {
   margin-left: auto;
-  color: #505A5F;
-  font-weight: 500;
+  color: #868E93;
+  font-weight: 400;
+  font-size: 14px;
+  line-height: 16px;
   font-variant-numeric: tabular-nums;
 }
 
-/* ----- Handle (right edge) — light dots on the dark wrap ----- */
-.proto-feed__handle {
+/* ----- Handle (right edge) — light dots on the dark wrap -----
+   Always visible (it's part of the design). Cursor defaults to grab;
+   actual drag interaction is gated by JS via DRAG_ENABLED. */
+.proto-listener__handle {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1109,12 +1555,12 @@ body.proto-paused.view-feed .proto-feed__primary-rec { display: inline-block; }
   cursor: grab;
   color: rgba(255, 255, 255, .55);
 }
-.proto-feed__handle:hover { color: rgba(255, 255, 255, .85); }
-.proto-feed__handle:active { cursor: grabbing; }
-.proto-feed__handle .proto-feed__ic { width: 12px; height: 18px; }
+.proto-listener__handle:hover { color: rgba(255, 255, 255, .85); }
+.proto-listener__handle:active { cursor: grabbing; }
+.proto-listener__handle .proto-listener__ic { width: 12px; height: 18px; }
 
 /* ----- Mic Settings popover ----- */
-.proto-feed__popover {
+.proto-listener__popover {
   position: absolute;
   width: 249px;
   background: #fff;
@@ -1127,8 +1573,8 @@ body.proto-paused.view-feed .proto-feed__primary-rec { display: inline-block; }
   font: 500 14px / 16px "Lato", var(--font);
   color: #0B0C0C;
 }
-.proto-feed__popover[hidden] { display: none; }
-.proto-feed__pop-issue {
+.proto-listener__popover[hidden] { display: none; }
+.proto-listener__pop-issue {
   margin: 0 8px 8px;
   padding: 10px 12px;
   background: #fbe8eb;
@@ -1136,15 +1582,15 @@ body.proto-paused.view-feed .proto-feed__primary-rec { display: inline-block; }
   border-radius: 8px;
   font: 600 12px / 16px "Lato", var(--font);
 }
-.proto-feed__pop-section {
+.proto-listener__pop-section {
   padding: 8px 16px 4px;
   font: 800 11px / 16px "Lato", var(--font);
   color: #505A5F;
   letter-spacing: .04em;
   text-transform: uppercase;
 }
-.proto-feed__pop-device,
-.proto-feed__pop-action {
+.proto-listener__pop-device,
+.proto-listener__pop-action {
   display: flex;
   align-items: center;
   gap: 12px;
@@ -1157,71 +1603,583 @@ body.proto-paused.view-feed .proto-feed__primary-rec { display: inline-block; }
   color: #0B0C0C;
   font: 600 14px / 20px "Lato", var(--font);
 }
-.proto-feed__pop-device:hover,
-.proto-feed__pop-action:hover { background: rgba(0, 0, 0, .04); }
-.proto-feed__pop-check {
+.proto-listener__pop-device:hover,
+.proto-listener__pop-action:hover { background: rgba(0, 0, 0, .04); }
+.proto-listener__pop-check {
   width: 16px;
   height: 16px;
   color: #0B0C0C;
   flex: 0 0 auto;
   display: inline-flex;
 }
-.proto-feed__pop-check--placeholder { visibility: hidden; }
-.proto-feed__pop-check svg { width: 100%; height: 100%; fill: currentColor; }
-.proto-feed__pop-device-name {
+.proto-listener__pop-check--placeholder { visibility: hidden; }
+.proto-listener__pop-check svg { width: 100%; height: 100%; fill: currentColor; }
+.proto-listener__pop-device-name {
   flex: 1 1 auto;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.proto-feed__pop-meter {
+.proto-listener__pop-meter {
   display: inline-flex;
   align-items: center;
   gap: 2px;
   height: 11px;
 }
-.proto-feed__pop-meter span {
+.proto-listener__pop-meter span {
   display: inline-block;
   width: 3px;
   background: #5CA246;
   border-radius: 1px;
   transform-origin: center;
-  animation: proto-feed-bar-pulse 1.1s ease-in-out infinite;
+  animation: proto-listener-bar-pulse 1.1s ease-in-out infinite;
 }
-.proto-feed__pop-meter span[data-feed-band="0"] { height: 9px;  animation-duration: 1.3s; animation-delay: -0.05s; }
-.proto-feed__pop-meter span[data-feed-band="1"] { height: 11px; animation-duration: 0.9s; animation-delay: -0.4s; }
-.proto-feed__pop-meter span[data-feed-band="2"] { height: 7px;  animation-duration: 1.5s; animation-delay: -0.65s; }
-.proto-feed__pop-meter span[data-feed-band="3"] { height: 9px;  animation-duration: 1.1s; animation-delay: -0.22s; }
-.proto-feed__pop-meter span[data-feed-band="4"] { height: 8px;  animation-duration: 1.0s; animation-delay: -0.32s; }
+.proto-listener__pop-meter span[data-listener-band="0"] { height: 9px;  animation-duration: 1.3s; animation-delay: -0.05s; }
+.proto-listener__pop-meter span[data-listener-band="1"] { height: 11px; animation-duration: 0.9s; animation-delay: -0.4s; }
+.proto-listener__pop-meter span[data-listener-band="2"] { height: 7px;  animation-duration: 1.5s; animation-delay: -0.65s; }
+.proto-listener__pop-meter span[data-listener-band="3"] { height: 9px;  animation-duration: 1.1s; animation-delay: -0.22s; }
+.proto-listener__pop-meter span[data-listener-band="4"] { height: 8px;  animation-duration: 1.0s; animation-delay: -0.32s; }
 
-@keyframes proto-feed-bar-pulse {
+@keyframes proto-listener-bar-pulse {
   0%, 100% { transform: scaleY(0.35); }
   50%      { transform: scaleY(1); }
 }
-.proto-feed__pop-divider {
+.proto-listener__pop-divider {
   height: 1px;
   background: rgba(0, 0, 0, .08);
   margin: 4px 0;
 }
-.proto-feed__pop-icon {
+.proto-listener__pop-icon {
   width: 16px;
   height: 16px;
   color: #0B0C0C;
   flex: 0 0 auto;
   display: inline-flex;
 }
-.proto-feed__pop-icon svg { width: 100%; height: 100%; fill: currentColor; }
-.proto-feed__pop-arrow {
+.proto-listener__pop-icon svg { width: 100%; height: 100%; fill: currentColor; }
+.proto-listener__pop-arrow {
   width: 14px;
   height: 14px;
   color: rgba(0, 0, 0, .35);
   flex: 0 0 auto;
   display: inline-flex;
 }
-.proto-feed__pop-arrow svg { width: 100%; height: 100%; fill: currentColor; }
+.proto-listener__pop-arrow svg { width: 100%; height: 100%; fill: currentColor; }
 
-/* Logo always brand-blue regardless of state — listening uses a shimmer
-   (animation defined above) rather than a colour swap. */
+/* Logo always brand-blue regardless of state — the status-bar states use a
+   shimmer (animation defined above) rather than a colour swap. */
+
+/* =====================================================================
+   Feed — Idle Listen button: gradient sheen + soft purple/blue rim.
+   The Listen pill is the only thing on the surface in idle, so it gets a
+   light moving sheen to draw the eye. Stays subtle on the white pill —
+   colour washes are kept low-saturation. The rim tints the button very
+   slightly toward purple/blue so it reads as the brand mark, not generic
+   white.
+   ===================================================================== */
+/* Listen button — white sheen sweeps across the darker brand purple.
+   Slower animation (6 s) because the bar is *idle* — should breathe,
+   not throb. */
+.proto-listener__listen {
+  position: relative;
+  overflow: hidden;
+  background:
+    /* Top layer: moving white sheen */
+    linear-gradient(
+      120deg,
+      rgba(255, 255, 255, 0) 0%,
+      rgba(255, 255, 255, 0) 38%,
+      rgba(255, 255, 255, .22) 50%,
+      rgba(255, 255, 255, 0) 62%,
+      rgba(255, 255, 255, 0) 100%
+    ),
+    /* Base: darker brand-purple gradient (matches the static rule above) */
+    linear-gradient(195.5deg, #6E12C7 15%, #9C0EB6 70%, #3D0A66 110%);
+  background-size: 220% 100%, 100% 100%;
+  background-position: 100% 0, 0 0;
+  animation: proto-listener-listen-sheen 6s ease-in-out infinite;
+}
+.proto-listener__listen:hover {
+  background:
+    linear-gradient(
+      120deg,
+      rgba(255, 255, 255, 0) 0%,
+      rgba(255, 255, 255, 0) 38%,
+      rgba(255, 255, 255, .28) 50%,
+      rgba(255, 255, 255, 0) 62%,
+      rgba(255, 255, 255, 0) 100%
+    ),
+    linear-gradient(195.5deg, #7d18d8 15%, #af11cc 70%, #4a0d7d 110%);
+}
+@keyframes proto-listener-listen-sheen {
+  /* Single-layer sheen on the CTA's ::before. Slow drift from beyond
+     the right edge to past the left edge, with a brief pause at the
+     extremes (the ease curve handles that visually). */
+  0%   { background-position: 130% 0; }
+  100% { background-position: -50% 0; }
+}
+
+/* Primer rows — single row, sized so each primer-row hugs its content. */
+.proto-listener__primer-row { height: 40px; flex: 0 0 auto; }
+.proto-listener__primer-row--actions {
+  flex: 1 1 auto;
+  justify-content: flex-end;
+}
+.proto-listener__primer-start {
+  min-width: 140px;
+  flex: 0 0 auto;
+}
+
+/* =====================================================================
+   Tooltips — pure CSS, .5 s hover-delay. Applied only to icon-only or
+   numeric controls where the label is missing (Pause, Stop-paused,
+   Mic Settings, Risk counter, Drag handle, Session pill). Labelled
+   buttons (Listen, Stop, Resume, language pill) are skipped so we
+   don't double up on copy.
+   The transition `delay` is what gives us the half-second wait; the
+   actual fade is fast once it kicks in.
+   ===================================================================== */
+[data-tooltip] { position: relative; }
+[data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%) translateY(2px);
+  background: rgba(11, 12, 12, .92);
+  color: #fff;
+  font: 600 12px / 16px "Lato", var(--font);
+  letter-spacing: -.01em;
+  padding: 5px 9px;
+  border-radius: 6px;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  z-index: 80;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, .25);
+  transition:
+    opacity .12s ease,
+    transform .12s ease,
+    visibility 0s linear .12s;
+}
+[data-tooltip]:hover::after,
+[data-tooltip]:focus-visible::after {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(-50%) translateY(0);
+  transition:
+    opacity .14s ease .5s,
+    transform .14s ease .5s,
+    visibility 0s linear .5s;
+}
+/* Suppress an ancestor tooltip when one of its descendants is hovered
+   (e.g. the risk-counter inside the session pill). Without this, both
+   tooltips would appear at once because :hover propagates up the tree. */
+[data-tooltip]:hover:has([data-tooltip]:hover)::after,
+[data-tooltip]:focus-visible:has([data-tooltip]:focus-visible)::after {
+  opacity: 0 !important;
+  visibility: hidden !important;
+  transition: opacity .08s ease, visibility 0s linear .08s !important;
+}
+
+/* =====================================================================
+   VARIANT: Expanded  (per Figma node 13459:39792)
+   A simplified two-row Listener build. Status text sits transparent on
+   the dark wrap (no white pill); voice equaliser replaces the brand
+   mark; risk counter floats outside the wrap as a notification badge;
+   transcript text fades at both edges via a gradient mask.
+
+   Compact (default) layout is unchanged by these rules — the variant
+   is gated behind `body.variant-compact`.
+   ===================================================================== */
+
+/* Voice equaliser bars — hidden in the Compact variant; only the
+   Expanded variant shows them. */
+.proto-listener__bars { display: none; }
+.proto-listener__bars span {
+  display: inline-block;
+  width: 3px;
+  height: 3px;
+  background: #fff;
+  border-radius: 1.5px;
+  transform-origin: center;
+  transition: height .18s cubic-bezier(.22, .9, .3, 1);
+}
+
+/* ---------- Compact variant overrides ---------- */
+/* Width is locked (244) across every state; height morphs:
+     Idle    — 44 tall, single row: [Listen+EN CTA] [Mic settings]
+     Active  — 76 tall, two rows: status row (bars + label-over-feed) + controls row
+   Every height is explicit + max-bound so nothing can stretch the wrap.
+   The wrap height transition is declared on `.proto-listener__wrap` (above)
+   so the morph between 44 ↔ 76 animates smoothly. */
+
+/* Common wrap width — same in idle and active states. */
+.proto-listener--variant-compact .proto-listener__wrap {
+  align-items: stretch !important;
+}
+.proto-listener--variant-compact[data-state="idle"] .proto-listener__wrap,
+.proto-listener--variant-compact[data-state="listening"] .proto-listener__wrap,
+.proto-listener--variant-compact[data-state="paused"] .proto-listener__wrap,
+.proto-listener--variant-compact[data-state="starting"] .proto-listener__wrap,
+.proto-listener--variant-compact[data-state="stopping"] .proto-listener__wrap {
+  width: 244px !important;
+  min-width: 244px !important;
+  max-width: 244px !important;
+}
+/* Idle = single row, 44 tall. */
+.proto-listener--variant-compact[data-state="idle"] .proto-listener__wrap {
+  height: 44px !important;
+  min-height: 44px !important;
+  max-height: 44px !important;
+}
+/* Active states (listening/paused/starting/stopping) = two rows, 76 tall. */
+.proto-listener--variant-compact[data-state="listening"] .proto-listener__wrap,
+.proto-listener--variant-compact[data-state="paused"] .proto-listener__wrap,
+.proto-listener--variant-compact[data-state="starting"] .proto-listener__wrap,
+.proto-listener--variant-compact[data-state="stopping"] .proto-listener__wrap {
+  height: 76px !important;
+  min-height: 76px !important;
+  max-height: 76px !important;
+}
+
+/* Container — 180 wide (244 wrap − 4 left padding − persistent mic 36
+   − persistent handle 16 − 2 × 4 gaps = 180). The mic and handle now
+   sit OUTSIDE the container, as siblings, so they stay put across
+   state transitions. The Listen CTA fills the freed space (the
+   previous layout left dark wrap bg around it). */
+.proto-listener--variant-compact .proto-listener__container {
+  width: 180px !important;
+  flex: 0 0 180px !important;
+}
+/* Idle: row, 36 tall — the Listen+EN CTA + mic settings. */
+.proto-listener--variant-compact[data-state="idle"] .proto-listener__container {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  gap: 4px !important;
+  height: 36px !important;
+  max-height: 36px !important;
+}
+/* Active: container holds only the 36-tall controls row; the session
+   row (bars + label + transcript) is absolutely positioned at the top
+   of the wrap (see below) so its transcript zone can extend all the
+   way to the wrap's right edge — same right edge as the floating risk
+   counter. */
+.proto-listener--variant-compact[data-state="listening"] .proto-listener__container,
+.proto-listener--variant-compact[data-state="paused"] .proto-listener__container,
+.proto-listener--variant-compact[data-state="starting"] .proto-listener__container,
+.proto-listener--variant-compact[data-state="stopping"] .proto-listener__container {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  justify-content: flex-end !important;
+  align-self: flex-end !important;   /* bottom-anchored in wrap */
+  height: 36px !important;
+  max-height: 36px !important;
+}
+
+/* Active div — controls only (session hoisted out via absolute below).
+   In idle the base `.proto-listener__active { display: none }` rule
+   applies. The gallery preview puts inline `flex-direction: row` on
+   this div, so we force column with !important. */
+.proto-listener--variant-compact[data-state="listening"] .proto-listener__active,
+.proto-listener--variant-compact[data-state="paused"] .proto-listener__active,
+.proto-listener--variant-compact[data-state="starting"] .proto-listener__active,
+.proto-listener--variant-compact[data-state="stopping"] .proto-listener__active {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  justify-content: flex-end !important;
+  width: 100% !important;
+  height: 36px !important;
+  max-height: 36px !important;
+}
+
+/* Wrap becomes the positioning context for the floated session row. */
+.proto-listener--variant-compact .proto-listener__wrap {
+  position: relative;
+}
+/* Session row — absolute, top of wrap, spans the full inner width so
+   the transcript right edge meets the floating risk counter at the
+   wrap's top-right corner. Only visible in active states. */
+.proto-listener--variant-compact[data-state="listening"] .proto-listener__session,
+.proto-listener--variant-compact[data-state="paused"] .proto-listener__session,
+.proto-listener--variant-compact[data-state="starting"] .proto-listener__session,
+.proto-listener--variant-compact[data-state="stopping"] .proto-listener__session {
+  position: absolute !important;
+  top: 4px !important;
+  left: 4px !important;
+  right: 4px !important;
+  width: auto !important;
+  height: 28px !important;
+  flex: none !important;
+}
+
+/* Status row — 28 tall, transparent.
+   Layout: [bars 23] [gap 8] [transcript zone — fills remainder]. */
+.proto-listener--variant-compact .proto-listener__session {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  width: 100% !important;
+  flex: 0 0 28px !important;
+  height: 28px !important;
+  max-height: 28px !important;
+  padding: 0 8px !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  cursor: pointer;
+  color: #fff;
+}
+
+/* Logo hidden; voice equaliser takes its place on the left. */
+.proto-listener--variant-compact .proto-listener__logo { display: none !important; }
+.proto-listener--variant-compact .proto-listener__bars {
+  display: inline-flex !important;
+  align-items: end !important;
+  gap: 2px !important;
+  width: 23px !important;
+  height: 11px !important;
+  flex: 0 0 23px !important;
+}
+
+/* Transcript zone — positioned container, 28 tall. Holds both the
+   running transcript text and the status-label overlay. */
+.proto-listener--variant-compact .proto-listener__transcript {
+  position: relative !important;
+  flex: 1 1 auto !important;
+  align-self: stretch !important;
+  min-width: 0 !important;
+  height: 28px !important;
+  max-height: 28px !important;
+  overflow: hidden !important;
+  display: block !important;
+  background: none !important;
+  -webkit-mask-image: none !important;
+          mask-image: none !important;
+}
+
+/* Running transcript text — right-anchored, single line. Mask fades
+   the text to transparent on the LEFT (where the label sits) so it
+   visually "runs under" the label without needing a solid gradient bg
+   on the label itself. Also fades softly on the right edge for clean
+   overflow. */
+.proto-listener--variant-compact .proto-listener__transcript-text {
+  position: absolute !important;
+  top: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  left: auto !important;
+  display: flex !important;
+  align-items: center !important;
+  height: 28px !important;
+  transform: none !important;
+  white-space: nowrap !important;
+  color: rgba(255, 255, 255, .55) !important;
+  font: 600 13px / 20px "Lato", var(--font) !important;
+  letter-spacing: -.01em !important;
+  z-index: 0 !important;
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent 0%,
+    transparent 25%,
+    #000 45%,
+    #000 100%
+  ) !important;
+          mask-image: linear-gradient(
+    to right,
+    transparent 0%,
+    transparent 25%,
+    #000 45%,
+    #000 100%
+  ) !important;
+}
+.proto-listener--variant-compact[data-state="paused"] .proto-listener__transcript-text {
+  display: flex !important;
+}
+
+/* Status label — top-anchored, fixed 28 height, OVER the transcript
+   text. NO background — the transparent dark wrap shows through and
+   the transcript text fades out under the label via its own mask, so
+   no solid fade is needed (and a dark fade looked off on the already-
+   transparent wrap). */
+.proto-listener--variant-compact .proto-listener__status-label {
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: auto !important;
+  bottom: auto !important;
+  display: none;
+  align-items: center !important;
+  height: 28px !important;
+  max-height: 28px !important;
+  padding: 0 !important;
+  color: #fff !important;
+  font: 800 13px / 20px "Lato", var(--font) !important;
+  letter-spacing: -.01em !important;
+  white-space: nowrap !important;
+  z-index: 1 !important;
+  background: transparent !important;
+}
+.proto-listener--variant-compact[data-state="listening"] .proto-listener__status-label--listening,
+.proto-listener--variant-compact[data-state="starting"]  .proto-listener__status-label--listening,
+.proto-listener--variant-compact[data-state="stopping"]  .proto-listener__status-label--listening { display: inline-flex !important; }
+.proto-listener--variant-compact[data-state="paused"]    .proto-listener__status-label--paused    { display: inline-flex !important; }
+
+/* Controls row — 36 tall, full 220 wide. */
+.proto-listener--variant-compact .proto-listener__controls {
+  display: flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  width: 100% !important;
+  flex: 0 0 36px !important;
+  height: 36px !important;
+  max-height: 36px !important;
+}
+/* Primary pill flexes to fill the remaining space in the 180-wide
+   controls row (after pause / stop-paused + gaps). `min-width: 0`
+   plus `overflow: hidden` lets the pill shrink below its content
+   width — without that flex defaults to `min-width: auto`, which
+   pins the pill to its intrinsic size and pushes the right edge
+   past the controls row, overlapping the mic settings button.
+   The time chip truncates with an ellipsis when space is tight. */
+.proto-listener--variant-compact .proto-listener__primary {
+  width: auto !important;
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+  overflow: hidden;
+  padding: 0 10px;
+}
+.proto-listener--variant-compact .proto-listener__primary-time {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Risk counter floats outside the wrap at top-right as a notification
+   badge. Rounded-square chip (8 px radius), 28 × 28, dark ring border so
+   it reads as a Figma-style notification badge. Low count = amber, high
+   (≥3) = red. Hidden when zero via the global `:empty` / `--empty` rule. */
+.proto-listener--variant-compact .proto-listener__counter {
+  position: absolute;
+  top: -10px;
+  right: -10px;
+  width: auto;
+  min-width: 28px;
+  height: 28px;
+  padding: 0 6px;
+  border-radius: 8px;
+  background: #F09238;          /* amber for low (1–2) */
+  color: #fff;
+  font: 800 14px / 18px "Lato", var(--font);
+  letter-spacing: -.01em;
+  box-shadow:
+    0 4px 10px rgba(240, 146, 56, .32),
+    0 0 0 2px rgba(11, 12, 12, .65);
+  z-index: 2;
+}
+.proto-listener--variant-compact .proto-listener__counter.is-high {
+  background: #E42045;           /* red for ≥3 */
+  color: #fff;
+  box-shadow:
+    0 4px 10px rgba(228, 32, 69, .35),
+    0 0 0 2px rgba(11, 12, 12, .65);
+}
+/* Hide-on-zero rule still applies via display: none from earlier. */
+
+/* Persistent mic settings — 36 × 36 (matches the Listen pill and the
+   drag handle, so all three share one Y-centre line). Bottom-anchored
+   to the wrap; the wrap is bottom-anchored in the viewport, so the
+   gear icon never moves on screen during state transitions. */
+.proto-listener--variant-compact .proto-listener__settings {
+  width: 36px !important;
+  height: 36px !important;
+  align-self: flex-end !important;
+  margin-left: 4px !important;
+  flex: 0 0 auto !important;
+}
+
+/* Persistent handle — same bottom-anchor treatment as the mic settings
+   so both stay put when the wrap grows upward into the listening state. */
+.proto-listener--variant-compact .proto-listener__handle {
+  align-self: flex-end !important;
+  height: 36px !important;
+  flex: 0 0 auto !important;
+}
+
+/* Idle Listen + EN CTA — fills the container width now that the mic
+   settings has been hoisted out, so the wrap bg no longer has empty
+   space around the pill. */
+.proto-listener--variant-compact .proto-listener__cta {
+  flex: 1 1 auto !important;
+  width: auto !important;
+}
+.proto-listener--variant-compact[data-state="idle"] .proto-listener__idle {
+  display: flex !important;
+  align-items: center !important;
+  width: 100% !important;
+  height: 36px !important;
+}
+
+/* ---------- Voice equaliser animation ---------- */
+@keyframes proto-listener-bar-1 { 0%, 100% { height: 3px; } 50% { height: 7px; } }
+@keyframes proto-listener-bar-2 { 0%, 100% { height: 5px; } 50% { height: 11px; } }
+@keyframes proto-listener-bar-3 { 0%, 100% { height: 3px; } 50% { height: 4px; } }
+@keyframes proto-listener-bar-4 { 0%, 100% { height: 4px; } 50% { height: 8px; } }
+@keyframes proto-listener-bar-5 { 0%, 100% { height: 3px; } 50% { height: 6px; } }
+.proto-listener--variant-compact[data-state="listening"] .proto-listener__bars span:nth-child(1) { animation: proto-listener-bar-1 .9s ease-in-out infinite; }
+.proto-listener--variant-compact[data-state="listening"] .proto-listener__bars span:nth-child(2) { animation: proto-listener-bar-2 1.1s ease-in-out infinite; }
+.proto-listener--variant-compact[data-state="listening"] .proto-listener__bars span:nth-child(3) { animation: proto-listener-bar-3 .8s ease-in-out infinite; }
+.proto-listener--variant-compact[data-state="listening"] .proto-listener__bars span:nth-child(4) { animation: proto-listener-bar-4 1.0s ease-in-out infinite; }
+.proto-listener--variant-compact[data-state="listening"] .proto-listener__bars span:nth-child(5) { animation: proto-listener-bar-5 .85s ease-in-out infinite; }
+
+/* Paused: freeze in a pause-icon pattern --II- (middle two bars full
+   height, others collapsed). */
+.proto-listener--variant-compact[data-state="paused"] .proto-listener__bars span { height: 0; animation: none; }
+.proto-listener--variant-compact[data-state="paused"] .proto-listener__bars span:nth-child(3),
+.proto-listener--variant-compact[data-state="paused"] .proto-listener__bars span:nth-child(4) { height: 11px; }
+
+/* In Compact variant the voice bars stay hidden (default above). */
+
+/* =====================================================================
+   Keyboard-only focus rings — yellow brand outline visible only when the
+   user is tabbing through. Mouse clicks don't leave a ring afterwards
+   (per `:focus:not(:focus-visible)`). 2 px offset to give the squircle
+   radius room to breathe.
+   ===================================================================== */
+.proto-listener__cta-listen,
+.proto-listener__cta-lang,
+.proto-listener__primary,
+.proto-listener__pause,
+.proto-listener__stop-paused,
+.proto-listener__settings,
+.proto-listener__session,
+.proto-listener__lang-option,
+.proto-listener__pop-device,
+.proto-listener__pop-action,
+.proto-listener__handle {
+  outline: 0;
+}
+.proto-listener__cta-listen:focus-visible,
+.proto-listener__cta-lang:focus-visible,
+.proto-listener__primary:focus-visible,
+.proto-listener__pause:focus-visible,
+.proto-listener__stop-paused:focus-visible,
+.proto-listener__settings:focus-visible,
+.proto-listener__session:focus-visible,
+.proto-listener__lang-option:focus-visible,
+.proto-listener__pop-device:focus-visible,
+.proto-listener__pop-action:focus-visible,
+.proto-listener__handle:focus-visible {
+  outline: 2px solid #F9CB40;
+  outline-offset: 2px;
+  border-radius: 8px;
+}
 
 /* =====================================================================
    Session Summary modal — Feed-direction's "Open summary" target.
@@ -1306,6 +2264,18 @@ body.proto-paused.view-feed .proto-feed__primary-rec { display: inline-block; }
   border-radius: 999px;
 }
 .session-head .summary-title-row .ic { width: 14px; height: 14px; color: #1671BE; }
+/* AI sparkle in the transcript modal eyebrow — same mask as the Listen
+   icon; background is the purple gradient. */
+.session-head .summary-title-row .session-ai-sparkle {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  background: linear-gradient(180deg, #C211E5 0.48%, #C55DE4 97.6%);
+  -webkit-mask: url('assets/figma-icons/fluent-sparkle.svg') no-repeat center / contain;
+          mask: url('assets/figma-icons/fluent-sparkle.svg') no-repeat center / contain;
+}
+/* Match the eyebrow tint to the gradient so the row reads coherently. */
+.session-head .summary-title-row .session-ai-sparkle ~ .eyebrow { color: #7a4cf7; }
 .session-head .eyebrow {
   font: 700 11px / 14px "Lato", var(--font);
   letter-spacing: .04em;
@@ -1583,6 +2553,9 @@ body.view-components .proto-components {
   padding: 80px 24px 96px;
   font-family: "Lato", var(--font);
   color: #0B0C0C;
+  /* Light backdrop — overrides whichever bg theme is active so the
+     gallery header copy is always legible. */
+  background: #f6f4f0;
 }
 /* Hide the live UI when in the Components direction.
    The :not(.proto-ai--preview) and :not(.proto-toolbar--preview) excludes
@@ -1594,6 +2567,268 @@ body.view-components .notif,
 body.view-components .proto-toolbar:not(.proto-toolbar--preview),
 body.view-components .proto-ai--attached:not(.proto-ai--preview),
 body.view-components .proto-ai--separate:not(.proto-ai--preview) { display: none !important; }
+
+/* "Show transcript" button hidden — transcript lives in the session
+   summary screen now. DOM stays (app.js wires .textContent on it). */
+#btnTranscriptToggle { display: none !important; }
+
+/* The status pill's own language picker is hidden — the Listener owns
+   the language switcher now. #langPicker still exists in the DOM so
+   app.js can read/write its value (we still dispatch `change` from
+   the Listener dropdown). */
+.status-pill .lang-picker-wrap { display: none !important; }
+
+/* The "Simulation only" info bubble is no longer surfaced — what the
+   PoC does is documented elsewhere. */
+.status-pill .info-wrap { display: none !important; }
+
+/* =====================================================================
+   Technical control panel (status pill, top-left) — formal layout.
+   Two stacked sections inside a wider card:
+     • Service block — header, API status (dot + text), error banner
+       when relevant.
+     • Patient block — patient state ("No patient open" ↔ "Patient
+       opened") and the matching CTA(s).
+   ===================================================================== */
+.status-pill {
+  width: 320px;
+  min-width: 320px;
+  max-width: 320px;
+  box-sizing: border-box;
+  padding: 16px 18px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, .96);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow:
+    0 10px 28px rgba(0, 0, 0, .14),
+    0 1px 2px rgba(0, 0, 0, .06);
+}
+
+/* Header row (.status-pill-row:first-child) ------------- */
+.status-pill .status-pill-row:first-child {
+  min-height: auto;
+  margin: 0 0 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(0, 0, 0, .08);
+}
+.status-pill .status-feature {
+  font: 700 13px / 16px "Lato", var(--font);
+  color: #0B0C0C;
+  letter-spacing: -.01em;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.status-pill .status-feature .ic { width: 16px; height: 16px; color: #7a4cf7; }
+.status-pill .poc-tag {
+  background: #efeaf7;
+  color: #6b4cd9;
+  font: 700 10px / 14px "Lato", var(--font);
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: 4px;
+}
+
+/* API status row ---------------------------------------- */
+.status-pill .status-pill-note {
+  min-height: auto;
+  margin: 0;
+  padding: 0;
+  font: 600 12px / 16px "Lato", var(--font);
+  color: #4a5260;
+  letter-spacing: -.01em;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.status-pill .status-pill-note::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #4ea872;
+  flex: 0 0 auto;
+  box-shadow: 0 0 0 3px rgba(78, 168, 114, .18);
+  transition: background .18s ease, box-shadow .18s ease;
+}
+.status-pill[data-state="loading"] .status-pill-note::before {
+  background: #d8a23a;
+  box-shadow: 0 0 0 3px rgba(216, 162, 58, .18);
+  animation: status-dot-pulse 1.4s ease-in-out infinite;
+}
+.status-pill[data-state="error"] .status-pill-note::before {
+  background: #c43248;
+  box-shadow: 0 0 0 3px rgba(196, 50, 72, .18);
+}
+@keyframes status-dot-pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: .45; }
+}
+
+/* Voice API section — sits below the Patient block with its own divider
+   and gathers the API status row + any related error banner. */
+.status-pill__service {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(0, 0, 0, .08);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Error banner — sits under the Voice API status row (related error
+   reads as "this row failed because…"). Left accent bar + alert icon. */
+.status-pill__banner {
+  display: none;
+  margin: 4px 0 0;
+  padding: 9px 12px 9px 11px;
+  background: #fbe8ec;
+  color: #8d1a2b;
+  border-radius: 10px;
+  border-left: 3px solid #c43248;
+  font: 600 11.5px / 15px "Lato", var(--font);
+  letter-spacing: -.01em;
+  align-items: flex-start;
+  gap: 8px;
+}
+.status-pill__banner-ic {
+  width: 14px;
+  height: 14px;
+  color: #c43248;
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+.status-pill__banner-text {
+  flex: 1 1 auto;
+  word-break: break-word;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.status-pill__banner-headline {
+  font: 700 12px / 16px "Lato", var(--font);
+  color: #7a1224;
+  letter-spacing: -.01em;
+}
+.status-pill__banner-tip {
+  font: 500 11px / 15px "Lato", var(--font);
+  color: #6b3a45;
+  letter-spacing: -.005em;
+}
+.status-pill[data-state="error"] .status-pill__banner { display: flex; }
+
+/* Shared eyebrow — used by both EHR Connection and Voice API sections. */
+.status-pill__eyebrow {
+  font: 700 10px / 14px "Lato", var(--font);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: #6b6f78;
+}
+
+/* EHR Connection — first block after the header (no own top border;
+   the header's bottom border already separates them). */
+.status-pill__patient {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.status-pill__patient-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.status-pill__patient-status {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font: 600 13px / 18px "Lato", var(--font);
+  letter-spacing: -.01em;
+}
+.status-pill__patient-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #b4b7bb;
+  box-shadow: 0 0 0 3px rgba(180, 183, 187, .22);
+  transition: background .18s ease, box-shadow .18s ease;
+  flex: 0 0 auto;
+}
+body.patient-open .status-pill__patient-dot {
+  background: #4ea872;
+  box-shadow: 0 0 0 3px rgba(78, 168, 114, .18);
+}
+.status-pill__patient-label--opened { display: none; color: #0B0C0C; font-weight: 700; }
+.status-pill__patient-label--closed { color: #4a5260; }
+body.patient-open .status-pill__patient-label--closed { display: none; }
+body.patient-open .status-pill__patient-label--opened { display: inline; }
+
+/* Closed state — primary CTA below the status. */
+.status-pill__patient .status-pill-actions {
+  margin: 0;
+  min-height: auto;
+  flex-wrap: nowrap;
+  gap: 8px;
+  display: flex;
+}
+.status-pill__patient .status-pill-actions .btn--primary {
+  width: 100%;
+  justify-content: center;
+  background: #0B0C0C;
+  color: #fff;
+  border: 0;
+  font: 700 13px / 16px "Lato", var(--font);
+  letter-spacing: -.01em;
+  padding: 10px 14px;
+  border-radius: 10px;
+  transition: background .14s ease, transform .08s ease;
+}
+.status-pill__patient .status-pill-actions .btn--primary:hover { background: #1f2326; }
+.status-pill__patient .status-pill-actions .btn--primary:active { transform: translateY(1px); background: #000; }
+.status-pill__patient .status-pill-actions .btn--primary .ic { color: #fff; }
+body.patient-open .status-pill__patient .status-pill-actions { display: none; }
+
+/* Opened state — two secondary buttons. */
+.status-pill__patient-actions {
+  display: none;
+  gap: 8px;
+}
+body.patient-open .status-pill__patient-actions { display: flex; }
+.status-pill__btn {
+  flex: 1 1 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 36px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 0;
+  cursor: pointer;
+  font: 700 12.5px / 16px "Lato", var(--font);
+  letter-spacing: -.01em;
+  transition: background .14s ease, transform .08s ease, border-color .14s ease;
+}
+.status-pill__btn--secondary {
+  background: #f3f1ee;
+  color: #0B0C0C;
+}
+.status-pill__btn--secondary:hover { background: #ebe7e1; }
+.status-pill__btn--secondary:active { transform: translateY(1px); }
+.status-pill__btn--ghost {
+  background: transparent;
+  color: #8d1a2b;
+  box-shadow: inset 0 0 0 1px rgba(141, 26, 43, .25);
+}
+.status-pill__btn--ghost:hover {
+  background: #fdf2f4;
+  box-shadow: inset 0 0 0 1px rgba(141, 26, 43, .45);
+}
+.status-pill__btn--ghost:active { transform: translateY(1px); }
+.status-pill__btn:focus-visible {
+  outline: 2px solid #F9CB40;
+  outline-offset: 2px;
+}
 
 /* Gallery header */
 .proto-components__head {
@@ -1744,18 +2979,42 @@ body.view-components .proto-ai--separate:not(.proto-ai--preview) { display: none
   gap: 8px;
 }
 /* Force the preview visible regardless of body view class — the base
-   `body:not(.view-feed) .proto-feed { display: none }` hides Feed surfaces
+   `body:not(.view-listener) .proto-listener { display: none }` hides Feed surfaces
    outside the Feed direction; this override carves an exception for the
-   preview rendered inside the Components gallery. */
-.proto-feed--preview,
-body:not(.view-feed) .proto-feed--preview,
-body.view-components .proto-feed--preview { display: block !important; }
+   preview rendered inside the Components gallery.
 
-/* Preview wrap inherits dark translucent styling but is fixed width per state */
-.proto-feed--preview .proto-feed__wrap {
+   `inline-block` (not `block`) so the preview wrapper is content-sized:
+   the risk-counter badge is positioned at `top: -10; right: -10` of
+   `.proto-listener`, so the wrapper must hug the wrap's right edge.
+   With `display: block` the wrapper stretched to the cell's full
+   width and the badge floated way past the bar. */
+.proto-listener--preview,
+body:not(.view-listener) .proto-listener--preview,
+body.view-components .proto-listener--preview { display: inline-block !important; }
+
+/* Previews render inline inside their gallery cells — they must NOT inherit
+   the live surface's fixed positioning (which would stack every preview on
+   top of each other at the bottom-centre of the screen). `position: relative`
+   (not static) so the floating risk-counter badge anchors to this wrapper
+   and stays glued to the bar's top-right corner. */
+.proto-listener--preview {
+  position: relative !important;
+  left: auto !important;
+  top: auto !important;
+  right: auto !important;
+  bottom: auto !important;
+  transform: none !important;
+  z-index: auto !important;
+}
+
+/* Preview wrap inherits dark translucent styling. Each state is given an
+   explicit min-width so the preview shows the bar at its natural size
+   (the live wrap is content-sized; previews need to demonstrate the
+   typical width for that state). */
+.proto-listener--preview .proto-listener__wrap {
   display: inline-flex;
   align-items: stretch;
-  background: rgba(11, 12, 12, .36);
+  background: rgba(11, 12, 12, .66);
   -webkit-backdrop-filter: blur(8px);
           backdrop-filter: blur(8px);
   border-radius: 12px;
@@ -1765,19 +3024,42 @@ body.view-components .proto-feed--preview { display: block !important; }
     drop-shadow(0 1.2px 3.6px rgba(0, 0, 0, .15));
   font-family: "Lato", var(--font);
   color: #0B0C0C;
-  /* No min-width transitions on the preview — each state is sized to its
-     own natural content width. */
   transition: none;
 }
-.proto-feed--state-idle .proto-feed__wrap     { min-width: 174px; min-height: 48px; }
-.proto-feed--state-primer .proto-feed__wrap   { min-width: 300px; min-height: 94px; }
-.proto-feed--state-listening .proto-feed__wrap,
-.proto-feed--state-paused .proto-feed__wrap   { min-width: 320px; min-height: 94px; }
-/* Make sure the state-specific colours apply via the preview's own modifier
-   classes (no body-class dependency) for the gallery */
-.proto-feed--preview .proto-feed__logo svg { color: #1671BE; }
-.proto-feed--state-listening .proto-feed__logo svg {
-  animation: proto-feed-shimmer 2.2s ease-in-out infinite;
+/* Single-row horizontal layout — 48 tall, widths roughly per Figma spec.
+   Idle is wider now (lang switcher + Listen + Settings + handle). */
+/* Preview sizes updated to the 36-px button standard:
+   Idle      = CTA(160) + gap(4) + settings(36) + padding(4) + handle(16+4 margin) = 224
+   Listening = session(220) + gap(4) + controls(pause36 + 4 + primary140 + 4 + settings36 = 220)
+               + container-gap(4) + padding(4) + handle(20) = 468
+   Paused    = session(220) + gap(4) + controls(primary140 + 4 + stop-paused36 + 4 + settings36 = 220)
+               + container-gap(4) + padding(4) + handle(20) = 468
+   Wrap height: padding(4) + button(36) + padding(4) = 44. */
+.proto-listener--state-idle .proto-listener__wrap     { min-width: 224px; min-height: 44px; }
+.proto-listener--state-listening .proto-listener__wrap,
+.proto-listener--state-paused .proto-listener__wrap   { min-width: 468px; min-height: 44px; }
+
+/* Show the drag handle inside gallery previews even when DRAG_ENABLED is
+   off in the live JS — the gallery is a static design reference and the
+   handle is part of the spec. */
+.proto-listener--preview .proto-listener__handle { display: flex; }
+
+/* Mic Settings menu — preview variant. The live popover is absolute-positioned
+   below the gear button; in the Components gallery we render it inline. */
+.proto-listener--menu-preview {
+  display: inline-block !important;
+  background: transparent !important;
+}
+.proto-listener__popover--inline {
+  position: static !important;
+  display: block !important;
+  width: 260px;
+}
+/* Preview state classes drive layout independently of body classes */
+.proto-listener--preview .proto-listener__logo svg { color: #944FCF; }
+.proto-listener--state-listening .proto-listener__logo svg,
+.proto-listener--state-paused .proto-listener__logo svg {
+  animation: proto-listener-logo-pulse 2.6s ease-in-out infinite;
 }
 
 /* Modal previews — render at natural size, no overlay, scoped containers */

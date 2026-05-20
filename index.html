@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>C the Signs — Ambient AI (PoC)</title>
   <link rel="stylesheet" href="styles.css" />
-  <link rel="stylesheet" href="prototype.css?v=27" />
+  <link rel="stylesheet" href="prototype.css?v=81" />
   <!-- PeerJS — free WebRTC signalling broker. Used for phone-as-microphone. -->
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
   <!-- QRious — small QR-code generator for canvas. Renders the connection
@@ -136,6 +136,23 @@
       </symbol>
       <symbol id="fic-chevron-r" viewBox="0 0 16 16">
         <path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" d="m6 4 4 4-4 4"/>
+      </symbol>
+      <!-- AI sparkle — our concept icon. Used WHITE on the Listen CTA
+           (via currentColor) and with the brand purple gradient on the
+           Session Summary / transcript surfaces (via CSS `fill: url(#ai-sparkle-grad)`).
+           Geometry: one larger 4-point star (top-right) + a small 4-point
+           star (bottom-left), matching the Fluent "Sparkle" metaphor. -->
+      <linearGradient id="ai-sparkle-grad" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0.48%" stop-color="#C211E5"/>
+        <stop offset="97.6%" stop-color="#670DBA"/>
+      </linearGradient>
+      <symbol id="fic-sparkle-ai" viewBox="0 0 24 24">
+        <!-- Big 4-point sparkle (top-right). Straight-line geometry —
+             axes 6/+, intermediate points pulled toward centre so the
+             star reads as an asterisk rather than a diamond. -->
+        <path fill="currentColor" d="M15 2.5 L16.7 9.3 L23 11 L16.7 12.7 L15 19.5 L13.3 12.7 L7 11 L13.3 9.3 Z"/>
+        <!-- Small 4-point sparkle (bottom-left). -->
+        <path fill="currentColor" d="M6 14 L6.8 16.6 L9.5 17.5 L6.8 18.4 L6 21 L5.2 18.4 L2.5 17.5 L5.2 16.6 Z"/>
       </symbol>
     </defs>
   </svg>
@@ -326,7 +343,7 @@
         <div class="session-main">
           <div class="session-head">
             <div class="summary-title-row">
-              <svg class="ic ic--sparkles"><use href="#ic-sparkles"/></svg>
+              <span class="session-ai-sparkle" aria-hidden="true"></span>
               <span class="eyebrow">Ambient AI</span>
             </div>
             <h2 id="sessionSummaryTitle">Transcript</h2>
@@ -465,6 +482,6 @@
   </div>
 
   <script type="module" src="app.js"></script>
-  <script defer src="prototype.js?v=27"></script>
+  <script defer src="prototype.js?v=80"></script>
 </body>
 </html>
