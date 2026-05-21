@@ -800,7 +800,12 @@
     const now = performance.now();
     const live = (machine.state === 'listening' && segmentStart) ? (now - segmentStart) : 0;
     const text = fmtTimer((elapsedAccum + live) / 1000);
-    document.querySelectorAll('.proto-ai__primary-meta').forEach((el) => {
+    // Write to both selectors:
+    //   - .proto-ai__primary-meta — legacy (still used by gallery previews)
+    //   - .proto-listener__primary-time — the live Listener UI's timer slot,
+    //     introduced by the colleague's restructure. Without this the timer
+    //     was being computed but never rendered, so it stuck at "0:00".
+    document.querySelectorAll('.proto-ai__primary-meta, .proto-listener__primary-time').forEach((el) => {
       el.textContent = text;
     });
   }
