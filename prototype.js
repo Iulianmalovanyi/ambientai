@@ -1525,11 +1525,18 @@
       if (e.target === sessionSummaryOverlay) closeSessionSummary();
     });
   }
-  // Risk Assess → close the summary and open the existing Risk Assessment modal
+  // Risk Assess → close the summary and trigger app.js's openRiskAssessment
+  // via the existing #notifRiskAssess click handler. Setting raOverlay.hidden
+  // directly skipped the preselection logic in app.js, so the modal opened
+  // with an empty chip row even when factors had been detected. Going through
+  // the notification button ensures state.selectedFactorIds is repopulated
+  // from state.detected and the chips are rendered before the modal shows.
   if (sessionRiskAssess) {
     sessionRiskAssess.addEventListener('click', () => {
       closeSessionSummary();
-      if (raOverlay) raOverlay.hidden = false;
+      const notifRiskAssess = document.getElementById('notifRiskAssess');
+      if (notifRiskAssess) notifRiskAssess.click();
+      else if (raOverlay) raOverlay.hidden = false; // fallback
     });
   }
 
