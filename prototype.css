@@ -497,22 +497,27 @@ body.view-components .proto-chip__sep { display: none; }
 .proto-tb-btn--mic { overflow: visible; }
 .proto-tb-mic-count {
   position: absolute;
-  top: -6px;
-  right: -6px;
-  min-width: 18px;
-  height: 18px;
+  /* Tucked INSIDE the button (top-right corner). The toolbar parent has
+     overflow:hidden so anything outside the 44×44 button bounds is clipped
+     (the badge was previously cut by the toolbar's top edge). */
+  top: 3px;
+  right: 3px;
+  min-width: 16px;
+  height: 16px;
   padding: 0 4px;
-  border-radius: 6px;
+  border-radius: 5px;
   background: #F09238;
   color: #fff;
-  font: 800 11px / 14px "Lato", var(--font);
+  font: 800 10px / 12px "Lato", var(--font);
   letter-spacing: -.01em;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  /* Ring against the button (not the toolbar background) so the badge
+     reads as a separate chip on top of the blue tile. */
   box-shadow:
-    0 2px 6px rgba(240, 146, 56, .35),
-    0 0 0 2px #034E8E;
+    0 1px 3px rgba(0, 0, 0, .28),
+    0 0 0 1.5px #1671BE;
   z-index: 2;
   pointer-events: none;
   transition: opacity .14s ease;
@@ -520,8 +525,8 @@ body.view-components .proto-chip__sep { display: none; }
 .proto-tb-mic-count.is-high {
   background: #E42045;
   box-shadow:
-    0 2px 6px rgba(228, 32, 69, .4),
-    0 0 0 2px #034E8E;
+    0 1px 3px rgba(228, 32, 69, .35),
+    0 0 0 1.5px #1671BE;
 }
 .proto-tb-mic-count--empty,
 .proto-tb-btn--mic.is-on .proto-tb-mic-count {

@@ -1462,17 +1462,30 @@
   }
 
   // Pull detected factors from the existing Risk Summary list. Each card in
-  // #summaryList carries the factor name + source phrase that app.js wrote.
+  // #summaryList is built by app.js (openDetails) with this structure:
+  //   <div class="summary-card">
+  //     <div class="summary-card-name">FACTOR_NAME</div>
+  //     <div class="summary-card-evidence">
+  //       <span class="label">Heard during consultation:</span>
+  //       <q>TRIGGERING PHRASE</q>
+  //     </div>
+  //     <div class="summary-card-evidence">
+  //       <span class="label">Possible signal for:</span>
+  //       <span>category names</span>
+  //     </div>
+  //   </div>
+  // We harvest the canonical name + the triggering quote.
   function harvestFactorsFromSummary() {
     if (!summaryList) return [];
-    const items = summaryList.querySelectorAll('.summary-card, [data-factor]');
+    const items = summaryList.querySelectorAll('.summary-card');
     const out = [];
     items.forEach((node, i) => {
-      const nameEl = node.querySelector('strong, [data-factor-name], .factor-name');
-      const phraseEl = node.querySelector('.muted, [data-factor-phrase], .factor-phrase');
+      const nameEl = node.querySelector('.summary-card-name');
+      const quoteEl = node.querySelector('.summary-card-evidence q');
       const name = (nameEl ? nameEl.textContent : node.textContent).trim();
-      const phraseRaw = phraseEl ? phraseEl.textContent.trim() : '';
-      // Clean leading/trailing quotes and ellipses
+      const phraseRaw = quoteEl ? quoteEl.textContent.trim() : '';
+      // Clean leading/trailing quotes and ellipses (app.js sometimes wraps
+      // the quote in “…”, and the snippet helper adds a leading/trailing …).
       const phrase = phraseRaw.replace(/^["“'\s.…]+|["”'\s.…]+$/g, '');
       out.push({ name, phrase, colourClass: KW_COLOURS[i % KW_COLOURS.length] });
     });
@@ -1481,6 +1494,15 @@
 
   function openSessionSummary() {
     if (!sessionSummaryOverlay) return;
+    // app.js's #summaryList is only populated when openDetails() runs there.
+    // Simulate a click on the existing notification's "Details" button to
+    // trigger that population, then immediately hide app.js's modal so the
+    // prototype's Session Summary modal is what the user actually sees.
+    const notifDetails = document.getElementById('notifDetails');
+    if (notifDetails) {
+      notifDetails.click();
+      if (detailsOverlay) detailsOverlay.hidden = true;
+    }
     const factors = harvestFactorsFromSummary();
     const txt = (transcriptBody && transcriptBody.textContent) || '';
     renderSessionTranscript(txt, factors);
