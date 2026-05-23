@@ -148,6 +148,7 @@
           <svg class="proto-tb-icon"><use href="#fic-inbox"/></svg>
         </button>
         <button class="proto-tb-btn proto-tb-btn--mic" type="button" data-proto-btn="mic" data-listener-vis-toggle="1" aria-label="Toggle Listener" data-tooltip="Listener">
+          <span class="proto-tb-mic-sheen" aria-hidden="true"></span>
           <span class="proto-tb-icon proto-tb-mic" aria-hidden="true">
             <svg class="proto-tb-mic-ic proto-tb-mic-ic--plain"><use href="#fic-mic-tb"/></svg>
             <svg class="proto-tb-mic-ic proto-tb-mic-ic--active"><use href="#fic-mic-tb-active"/></svg>
@@ -162,6 +163,19 @@
       <div class="proto-tb-handle" role="button" tabindex="0" aria-label="Drag toolbar" data-tooltip="Drag to move">
         <svg class="proto-tb-grip" aria-hidden="true"><use href="#fic-grip-v"/></svg>
       </div>
+    </div>
+    <!-- Mini control row — sits OUTSIDE .proto-tb-wrap (which carries
+         overflow: hidden for its rounded corners) so it can hang below
+         the bar without clipping. Hover-revealed when the Listener bar
+         is collapsed AND a session is active. -->
+    <div class="proto-tb-mic-mini" aria-hidden="true">
+      <button class="proto-tb-mic-ctrl proto-tb-mic-ctrl--toggle" type="button" data-mini-action="toggle" aria-label="Pause" data-tooltip="Pause">
+        <svg class="proto-tb-mic-ctrl-ic proto-tb-mic-ctrl-ic--pause"><use href="#fic-pause-sm"/></svg>
+        <svg class="proto-tb-mic-ctrl-ic proto-tb-mic-ctrl-ic--play"><use href="#fic-play-sm"/></svg>
+      </button>
+      <button class="proto-tb-mic-ctrl proto-tb-mic-ctrl--stop" type="button" data-mini-action="stop" aria-label="Stop" data-tooltip="Stop">
+        <svg class="proto-tb-mic-ctrl-ic"><use href="#fic-stop-sm"/></svg>
+      </button>
     </div>
   `;
   toolbarWrap.appendChild(replicaToolbar);
@@ -235,7 +249,7 @@
               <!-- Primary pill — morphs between "Stop" (listening) and
                    "Resume" (paused). Same element so the transition is
                    smooth — only icon + label spans swap. -->
-              <button class="proto-listener__primary" type="button" data-proto-action="toggle" aria-label="Stop listening" data-tooltip="End session">
+              <button class="proto-listener__primary" type="button" data-proto-action="toggle" aria-label="Stop">
                 <svg class="proto-listener__primary-ic proto-listener__primary-ic--stop"><use href="#fic-stop-sm"/></svg>
                 <span class="proto-listener__primary-rec" aria-hidden="true"></span>
                 <span class="proto-listener__primary-label proto-listener__primary-label--stop">Stop</span>
@@ -243,7 +257,7 @@
                 <span class="proto-listener__primary-time">0:00</span>
               </button>
               <!-- PAUSED: icon-only Stop (ends the session). Hidden in listening. -->
-              <button class="proto-listener__stop-paused" type="button" data-listener-action="stop" aria-label="End session" data-tooltip="End session">
+              <button class="proto-listener__stop-paused" type="button" data-listener-action="stop" aria-label="Stop" data-tooltip="Stop">
                 <svg class="proto-listener__ic"><use href="#fic-stop-sm"/></svg>
               </button>
             </div>
@@ -263,6 +277,16 @@
           <svg class="proto-listener__ic"><use href="#fic-grip-v"/></svg>
         </div>
       </div>
+      <!-- Hover-revealed collapse — sits OUTSIDE the wrap on the right
+           as a standalone dark chip with an up-chevron, suggesting the
+           bar tucks back UP into the toolbar. The whole .proto-listener
+           is inline-flex so the chip is a true sibling of the wrap and
+           hover-reveal works without leaving the listener's hit-box. -->
+      <button class="proto-listener__collapse" type="button" data-listener-action="collapse" aria-label="Hide Listener" data-tooltip="Hide">
+        <svg viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M4 10 L8 6 L12 10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+        </svg>
+      </button>
 
       <!-- Mic Settings popover — anchored below the gear button -->
       <div class="proto-listener__popover" hidden role="menu" aria-label="Microphone settings">
@@ -328,9 +352,53 @@
       applyListenerVisibility(hidden);   // toggle
     });
   }
+  // Hover-revealed collapse on the bar itself — hides the Listener bar
+  // (same effect as the toolbar Mic toggle). The toolbar Mic stays the
+  // canonical way to reveal again.
+  const collapseBtn = listenerSurface.querySelector('[data-listener-action="collapse"]');
+  if (collapseBtn) {
+    collapseBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      applyListenerVisibility(false);
+    });
+  }
   // Apply saved (or default-hidden) state immediately so the bar doesn't
   // flash on first paint.
   applyListenerVisibility(loadListenerVisibility());
+
+  // Hover-revealed mini controls on the toolbar Mic — only fire when the
+  // session is active. Proxy to the existing toolbar backend buttons:
+  // `tbPause` / `tbStart` / `tbStop` are global handlers in app.js, so we
+  // get the same state changes as clicking from the Listener itself.
+  const miniToggleBtn = replicaToolbar.querySelector('[data-mini-action="toggle"]');
+  const miniStopBtn = replicaToolbar.querySelector('[data-mini-action="stop"]');
+  if (miniToggleBtn) {
+    miniToggleBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const tbStartEl = document.getElementById('tbStart');
+      const tbPauseEl = document.getElementById('tbPause');
+      const s = (typeof machine !== 'undefined' && machine.state) || 'idle';
+      if (s === 'listening' && tbPauseEl && !tbPauseEl.disabled) tbPauseEl.click();
+      else if (s === 'paused' && tbStartEl && !tbStartEl.disabled) tbStartEl.click();
+    });
+  }
+  if (miniStopBtn) {
+    miniStopBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const tbStopEl = document.getElementById('tbStop');
+      if (tbStopEl && !tbStopEl.disabled) tbStopEl.click();
+    });
+  }
+
+  // Mini-panel visibility is now CSS-only — it lives outside .proto-tb-wrap
+  // (which has overflow: hidden) and is positioned absolutely inside
+  // .proto-toolbar. Hover-reveal is driven by `body.listener-hidden +
+  // body.proto-{listening|paused} + .proto-toolbar:has(.proto-tb-btn--mic:hover)`
+  // (or `:has(.proto-tb-mic-mini:hover)` so moving the cursor from Mic
+  // onto the panel doesn't drop the hover). See prototype.css.
 
   // -------- 3b. Components gallery (view = components) ------------------
   // Non-interactive showcase of the main building blocks. Each card holds a
@@ -345,6 +413,7 @@
             <button class="proto-tb-btn"><svg class="proto-tb-icon"><use href="#fic-dashboard"/></svg></button>
             <button class="proto-tb-btn"><svg class="proto-tb-icon"><use href="#fic-inbox"/></svg></button>
             <button class="proto-tb-btn proto-tb-btn--mic">
+              <span class="proto-tb-mic-sheen" aria-hidden="true"></span>
               <span class="proto-tb-icon proto-tb-mic" aria-hidden="true">
                 <svg class="proto-tb-mic-ic proto-tb-mic-ic--plain"><use href="#fic-mic-tb"/></svg>
                 <svg class="proto-tb-mic-ic proto-tb-mic-ic--active"><use href="#fic-mic-tb-active"/></svg>
@@ -461,6 +530,11 @@
             <svg class="proto-listener__ic"><use href="#fic-grip-v"/></svg>
           </div>
         </div>
+        <button class="proto-listener__collapse" type="button" tabindex="-1" aria-label="Hide Listener">
+          <svg viewBox="0 0 16 16" aria-hidden="true">
+            <path d="M4 10 L8 6 L12 10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+          </svg>
+        </button>
       </div>
     `;
   }
@@ -528,11 +602,11 @@
             </div>
             <div class="proto-comp__feed-cell">
               <span class="proto-comp__caption">Listening</span>
-              ${buildListenerPreview('listening', { variant: 'compact', transcript: 'and some text that listen', count: 3, time: '4:18' })}
+              ${buildListenerPreview('listening', { variant: 'compact', transcript: 'and some longer running transcript text that overflows', count: 3, time: '4:18' })}
             </div>
             <div class="proto-comp__feed-cell">
               <span class="proto-comp__caption">Paused</span>
-              ${buildListenerPreview('paused', { variant: 'compact', transcript: 'and some text that listen', count: 1, time: '1:21' })}
+              ${buildListenerPreview('paused', { variant: 'compact', transcript: 'and some longer running transcript text that overflows', count: 1, time: '1:21' })}
             </div>
             <div class="proto-comp__feed-cell">
               <span class="proto-comp__caption">Mic Settings menu</span>
@@ -864,6 +938,14 @@
       if (toolbarMicBtn) {
         toolbarMicBtn.dataset.state = next;
       }
+      // Mini-toggle tooltip + aria flip with state — "Pause" while the
+      // session is listening, "Resume" while it's paused.
+      const miniToggleEl = replicaToolbar.querySelector('[data-mini-action="toggle"]');
+      if (miniToggleEl) {
+        const label = next === 'paused' ? 'Resume' : 'Pause';
+        miniToggleEl.setAttribute('aria-label', label);
+        miniToggleEl.setAttribute('data-tooltip', label);
+      }
 
       // Primary pill label + aria
       const label = LABELS[next];
@@ -1093,6 +1175,12 @@
   }
   function openLangMenu() {
     if (!langMenu) return;
+    // Mutex with the Mic Settings popover — only one menu open at a time.
+    // `listenerPopover` is defined later in the file but exists in the
+    // outer closure by the time this runs (event-driven).
+    if (typeof listenerPopover !== 'undefined' && listenerPopover) {
+      listenerPopover.hidden = true;
+    }
     langMenu.hidden = false;
     if (langBtn) langBtn.setAttribute('aria-expanded', 'true');
   }
@@ -1561,14 +1649,15 @@
   const listenerPopover = listenerSurface.querySelector('.proto-listener__popover');
   function positionPopover(triggerEl) {
     if (!listenerPopover || !triggerEl) return;
-    // Align the popover to the Listener bar's footprint: same width,
-    // right edge flush with the bar, sitting just below it. Anchoring
-    // to the bar (not the gear) keeps the popover stable as the bar
-    // morphs between states / variants.
-    const wrapRect = listenerSurface.getBoundingClientRect();
+    // Align the popover to the WRAP's footprint, not the full
+    // .proto-listener (which also includes the collapse chip as a
+    // flex sibling). The popover should match the dark bar's width,
+    // sitting flush under its left + right edges.
+    const wrapEl = listenerSurface.querySelector('.proto-listener__wrap');
+    const wrapRect = (wrapEl || listenerSurface).getBoundingClientRect();
     listenerPopover.style.top = (wrapRect.height + 6) + 'px';
-    listenerPopover.style.right = '0px';
-    listenerPopover.style.left = 'auto';
+    listenerPopover.style.left = '0px';
+    listenerPopover.style.right = 'auto';
     listenerPopover.style.width = wrapRect.width + 'px';
   }
   listenerSurface.querySelectorAll('[data-listener-action="mic-settings"]').forEach((btn) => {
@@ -1578,6 +1667,8 @@
       if (isOpen) {
         listenerPopover.hidden = true;
       } else {
+        // Mutex with the Lang dropdown — only one menu open at a time.
+        if (typeof closeLangMenu === 'function') closeLangMenu();
         positionPopover(btn);
         listenerPopover.hidden = false;
       }

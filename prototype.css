@@ -534,6 +534,135 @@ body.view-components .proto-chip__sep { display: none; }
   visibility: hidden;
 }
 
+/* ---- Toolbar Mic sheen ----
+   Same white-streak shimmer the Listen CTA uses, layered as a sibling
+   span so it doesn't clip the risk-count badge (which floats outside
+   the button via top:-6, right:-6). Only animates while listening. */
+.proto-tb-mic-sheen {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    115deg,
+    rgba(255, 255, 255, 0)    0%,
+    rgba(255, 255, 255, 0)    20%,
+    rgba(255, 255, 255, .06)  35%,
+    rgba(255, 255, 255, .18)  46%,
+    rgba(255, 255, 255, .28)  50%,
+    rgba(255, 255, 255, .18)  54%,
+    rgba(255, 255, 255, .06)  65%,
+    rgba(255, 255, 255, 0)    80%,
+    rgba(255, 255, 255, 0)    100%
+  );
+  background-size: 260% 100%;
+  background-position: 130% 0;
+  opacity: 0;
+  transition: opacity .2s ease;
+}
+/* Only animate when the Listener is collapsed — when the bar is on
+   screen the Listen CTA already carries the sheen, no need to double up. */
+.proto-tb-btn--mic:not(.is-on)[data-state="listening"] .proto-tb-mic-sheen {
+  opacity: 1;
+  animation: proto-listener-listen-sheen 4s ease-in-out infinite;
+}
+
+/* ---- Toolbar Mic mini-controls ----
+   Pause/Resume + Stop chip pair. Sits OUTSIDE `.proto-tb-wrap` (which
+   carries `overflow: hidden` for its rounded corners) as a sibling
+   inside `.proto-toolbar`, position: absolute relative to the toolbar.
+   That avoids both the overflow clip AND the position-fixed quirk
+   where `.proto-toolbar`'s `filter: drop-shadow` creates a containing
+   block for fixed descendants, breaking viewport-based pinning. */
+.proto-toolbar { position: relative; }
+.proto-tb-mic-mini {
+  position: absolute;
+  top: calc(100% + 4px);
+  /* Mic is the 4th button (Patient + Dashboard + Inbox before it,
+     each 44 px wide) → centre X = 44 × 3 + 22 = 154. */
+  left: 154px;
+  transform: translateX(-50%) translateY(-4px);
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 10px;
+  background: rgba(11, 12, 12, .82);
+  -webkit-backdrop-filter: blur(8px);
+          backdrop-filter: blur(8px);
+  filter:
+    drop-shadow(0 6.4px 14.4px rgba(0, 0, 0, .22))
+    drop-shadow(0 1.2px 3.6px rgba(0, 0, 0, .15));
+  opacity: 0;
+  visibility: hidden;
+  /* Hide is DELAYED by .18s so the panel stays interactive for a
+     moment after the Mic button hover drops — gives the cursor time to
+     traverse the 4 px visual gap onto the panel itself (with the help
+     of the ::before bridge below). */
+  transition:
+    opacity .14s ease,
+    transform .14s ease,
+    visibility 0s linear .18s;
+  z-index: 20;
+}
+/* Transparent hover bridge that extends the panel's hit area UPWARD
+   by 10 px to overlap the visual gap (and a sliver of the Mic button)
+   so the cursor stays inside the panel's hover region across the
+   traversal. The pseudo is part of the panel for CSS purposes —
+   hovering it triggers `.proto-tb-mic-mini:hover`. */
+.proto-tb-mic-mini::before {
+  content: "";
+  position: absolute;
+  left: -8px;
+  right: -8px;
+  top: -10px;
+  height: 14px;
+}
+/* Reveal only when bar is collapsed AND session is active AND user is
+   hovering either the Mic button or the mini panel (including the
+   bridge pseudo). Show transition is instant (visibility 0s) but the
+   default opacity/transform transition still gives a .14s fade-in. */
+body.listener-hidden.proto-listening .proto-toolbar:has(.proto-tb-btn--mic:hover) .proto-tb-mic-mini,
+body.listener-hidden.proto-listening .proto-toolbar:has(.proto-tb-mic-mini:hover) .proto-tb-mic-mini,
+body.listener-hidden.proto-paused .proto-toolbar:has(.proto-tb-btn--mic:hover) .proto-tb-mic-mini,
+body.listener-hidden.proto-paused .proto-toolbar:has(.proto-tb-mic-mini:hover) .proto-tb-mic-mini {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(-50%) translateY(0);
+  transition:
+    opacity .14s ease,
+    transform .14s ease,
+    visibility 0s linear;
+}
+.proto-tb-mic-ctrl {
+  width: 32px;
+  height: 32px;
+  border: 0;
+  padding: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: rgba(255, 255, 255, .9);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background .12s ease, color .12s ease;
+}
+.proto-tb-mic-ctrl:hover {
+  background: rgba(255, 255, 255, .12);
+  color: #fff;
+}
+.proto-tb-mic-ctrl-ic {
+  width: 14px;
+  height: 14px;
+  display: block;
+}
+.proto-tb-mic-ctrl-ic--play { display: none; }
+/* Pause-icon → play-icon swap on the toggle button when paused.
+   Gated on `body.proto-paused` (set by the state machine in tandem
+   with `data-state`), so the swap doesn't depend on the mini panel
+   being a descendant of any particular wrapper. */
+body.proto-paused .proto-tb-mic-ctrl-ic--pause { display: none; }
+body.proto-paused .proto-tb-mic-ctrl-ic--play  { display: block; }
+
 /* Listener visibility — `listener-hidden` is toggled by the toolbar Mic.
    Hides the bar but does NOT stop the session: STT, transcript, timer,
    risk detection all keep running in the DOM. Specificity matters here:
@@ -542,6 +671,73 @@ body.view-components .proto-chip__sep { display: none; }
    the body to outrank it (0,3,1 beats 0,2,1). */
 body.listener-hidden.view-listener .proto-listener,
 body.listener-hidden .proto-listener { display: none !important; }
+
+/* Hover-revealed collapse — standalone dark chip sitting OUTSIDE the
+   wrap, on the right, suggesting the bar tucks UP into the toolbar.
+   44 × 44 button so it reads as a peer of the toolbar buttons (not
+   crammed onto the dark surface). Bottom-aligned to the wrap via the
+   parent's `align-items: flex-end`, so when the wrap grows from 44
+   (idle) to 76 (active) the chip stays put at the bottom edge. */
+.proto-listener__collapse {
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  margin-bottom: 6px;   /* (44 − 32) / 2 — centres the chip on the 44 px idle wrap */
+  border: 0;
+  padding: 0;
+  border-radius: 8px;
+  background: rgba(11, 12, 12, .66);
+  -webkit-backdrop-filter: blur(8px);
+          backdrop-filter: blur(8px);
+  /* Icon hue matches the drag handle's grip-dot colour at rest, so the
+     two surfaces share one off-white tint. */
+  color: rgba(255, 255, 255, .55);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  transform: translateX(-4px);
+  filter:
+    drop-shadow(0 6.4px 14.4px rgba(0, 0, 0, .22))
+    drop-shadow(0 1.2px 3.6px rgba(0, 0, 0, .15));
+  /* Asymmetric timing: hide immediately when the cursor leaves so the
+     chip doesn't linger, but only show after a 100 ms dwell so a quick
+     mouse-pass over the 4 px gap between wrap and chip doesn't flash
+     it in and out. */
+  transition: opacity .16s ease, transform .16s ease, background .14s ease, color .14s ease;
+  z-index: 3;
+}
+.proto-listener:hover .proto-listener__collapse,
+.proto-listener:focus-within .proto-listener__collapse,
+.proto-listener__collapse:focus-visible {
+  opacity: 1;
+  transform: translateX(0);
+  transition-delay: .1s;
+}
+.proto-listener__collapse:hover {
+  background: rgba(11, 12, 12, .85);
+  color: #fff;
+}
+.proto-listener__collapse svg {
+  width: 22px;
+  height: 22px;
+  display: block;
+}
+/* Suppress the "hide" affordance only when the user is reaching for a
+   PRIMARY control — Listen CTA, Lang, session pill, pause, primary
+   (Stop / Resume), stop-paused. The mic-settings gear and drag handle
+   are service/meta surfaces (same category as the close itself), so
+   they don't suppress — the close stays available while the user
+   hovers around either of them. Also suppress while the mic-settings
+   popover itself is open or hovered, otherwise its section headers
+   (which sit inside .proto-listener) re-trigger the close-reveal. */
+.proto-listener:has(button:not(.proto-listener__collapse):not(.proto-listener__settings):hover) .proto-listener__collapse,
+.proto-listener:has(.proto-listener__lang-menu:hover) .proto-listener__collapse,
+.proto-listener:has(.proto-listener__popover:not([hidden])) .proto-listener__collapse {
+  opacity: 0;
+  pointer-events: none;
+}
 
 /* =====================================================================
    Ambient AI surface (shared between attached + separate variants)
@@ -916,7 +1112,11 @@ body.view-separate .proto-ai--attached { display: none; }
   left: auto !important;
   transform: none !important;
 }
-body.view-listener .proto-listener { display: inline-block !important; }
+body.view-listener .proto-listener {
+  display: inline-flex !important;
+  align-items: flex-end;   /* wrap + collapse chip share a bottom edge */
+  gap: 4px;
+}
 
 /* Hide the original CoreApp ambient surfaces while Feed is active. The
    replica TOOLBAR is intentionally kept visible — in Feed direction the
@@ -928,10 +1128,6 @@ body.view-listener #listenChip,
 body.view-listener #transcriptPanel,
 body.view-listener #notif { display: none !important; }
 body:not(.view-listener) .proto-listener { display: none; }
-
-/* Feed bar is always visible in Feed direction — idle by default. Opening
-   the patient auto-starts the session (see reconcileListenerPatientGate). */
-body.view-listener .proto-listener { display: inline-block; }
 
 /* ----- Surface frame -----
    Per the latest Figma: the outer wrap is a translucent dark layer (the
@@ -1107,17 +1303,17 @@ body.proto-stopping.view-listener .proto-listener__active {
   height: 36px;
   border-radius: 8px;
   flex: 0 0 auto;
-  background: linear-gradient(180deg, #C211E5 0.48%, #C55DE4 97.6%);
+  background: linear-gradient(180deg, #1671BE -3.51%, #C215E5 135.42%);
   box-shadow:
-    0 0 15px 0 rgba(182, 20, 233, .33),
+    0 0 15px 0 rgba(122, 60, 213, .33),
     0 1px 2px rgba(0, 0, 0, .12);
   transition: background .22s ease, box-shadow .22s ease;
 }
 /* Hover — darker hue of the same gradient + stronger glow. */
 .proto-listener__cta:hover {
-  background: linear-gradient(180deg, #A40FC1 0.48%, #A347C7 97.6%);
+  background: linear-gradient(180deg, #0E4D85 -3.51%, #9D11BD 135.42%);
   box-shadow:
-    0 0 20px 0 rgba(182, 20, 233, .45),
+    0 0 20px 0 rgba(122, 60, 213, .45),
     0 1px 3px rgba(0, 0, 0, .16);
 }
 /* White sheen shimmer — wider, multi-stop blend so the highlight
@@ -2176,18 +2372,24 @@ body.proto-stopping .proto-listener__primary-time {
   font: 600 13px / 20px "Lato", var(--font) !important;
   letter-spacing: -.01em !important;
   z-index: 0 !important;
+  /* Pushed even further right — the wrap's translucent bg rules out a
+     solid label background, so the transcript itself has to vanish
+     fully under the label area via the mask, with a long soft fade so
+     the join into solid text looks natural. */
   -webkit-mask-image: linear-gradient(
     to right,
     transparent 0%,
-    transparent 25%,
-    #000 45%,
+    transparent 55%,
+    rgba(0, 0, 0, .5) 70%,
+    #000 85%,
     #000 100%
   ) !important;
           mask-image: linear-gradient(
     to right,
     transparent 0%,
-    transparent 25%,
-    #000 45%,
+    transparent 55%,
+    rgba(0, 0, 0, .5) 70%,
+    #000 85%,
     #000 100%
   ) !important;
 }
@@ -2475,7 +2677,7 @@ body.proto-stopping .proto-listener__primary-time {
   display: inline-block;
   width: 18px;
   height: 18px;
-  background: linear-gradient(180deg, #C211E5 0.48%, #C55DE4 97.6%);
+  background: linear-gradient(180deg, #1671BE -3.51%, #C215E5 135.42%);
   -webkit-mask: url('assets/figma-icons/fluent-sparkle.svg') no-repeat center / contain;
           mask: url('assets/figma-icons/fluent-sparkle.svg') no-repeat center / contain;
 }
@@ -3324,14 +3526,16 @@ body.patient-open .status-pill__patient-actions { display: flex; }
    outside the Feed direction; this override carves an exception for the
    preview rendered inside the Components gallery.
 
-   `inline-block` (not `block`) so the preview wrapper is content-sized:
-   the risk-counter badge is positioned at `top: -10; right: -10` of
-   `.proto-listener`, so the wrapper must hug the wrap's right edge.
-   With `display: block` the wrapper stretched to the cell's full
-   width and the badge floated way past the bar. */
+   `inline-flex` (mirrors the live `body.view-listener .proto-listener`
+   rule) so the hover-revealed collapse chip sits as a true sibling of
+   the wrap, bottom-aligned, with the same 4 px gap as the live bar. */
 .proto-listener--preview,
 body:not(.view-listener) .proto-listener--preview,
-body.view-components .proto-listener--preview { display: inline-block !important; }
+body.view-components .proto-listener--preview {
+  display: inline-flex !important;
+  align-items: flex-end;
+  gap: 4px;
+}
 
 /* Previews render inline inside their gallery cells — they must NOT inherit
    the live surface's fixed positioning (which would stack every preview on
