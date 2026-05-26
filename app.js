@@ -248,6 +248,37 @@ function findFactor(canonicalName) {
 }
 
 // =====================================================================
+// Farewell detection — auto-stop the session when the consultation ends.
+// Matches phrases typically said at the close of a clinical encounter.
+// The phrase only counts if it falls at the END of the utterance, so
+// mid-conversation mentions ("…you said bye to my neighbour…") don't fire.
+// Checked on BOTH the original-language transcript AND the English
+// translation, so it also catches non-English farewells once translated.
+// =====================================================================
+const FAREWELL_REGEX = new RegExp(
+  '(' + [
+    'goodbye',
+    'good\\s+bye',
+    'bye\\s+bye',
+    'bye-bye',
+    'bye',                                            // bare "bye" — caught only at end of utterance
+    'thank\\s*you,?\\s*doctor',
+    'thanks,?\\s*doctor',
+    'thanks\\s+for\\s+your\\s+time',
+    'thank\\s+you\\s+so\\s+much',
+    'see\\s+you\\s+(later|at\\s+the\\s+next\\s+appointment)',
+    'take\\s+care',
+    'speak\\s+(?:to\\s+you\\s+)?soon',
+    'have\\s+a\\s+good\\s+(?:day|one)'
+  ].join('|') + ')\\s*[.!?]?\\s*$',
+  'i'
+);
+
+function isFarewell(text) {
+  return FAREWELL_REGEX.test((text || '').trim());
+}
+
+// =====================================================================
 // Speech recognition
 // =====================================================================
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -300,6 +331,15 @@ function initRecognition() {
         sttStatus.textContent = `✓ Captured: "${englishDelta.slice(0, 70)}${englishDelta.length > 70 ? '…' : ''}"`;
       }
       runLocalLlm(englishDelta, deltaStart);
+      // Auto-stop on farewell phrases (e.g. "Thank you, doctor", "Bye", "See
+      // you later"). Checks BOTH the original-language utterance and its
+      // English translation so it works in any supported language.
+      if (isFarewell(rawDelta) || isFarewell(englishDelta)) {
+        sttStatus.textContent = '👋 Farewell detected — listening stopped.';
+        showToast('Farewell detected — session ended');
+        // Delay slightly so the latest transcript update is visible first
+        setTimeout(() => { if (state.listening) pauseListening(); }, 400);
+      }
     } else if (interim) {
       sttStatus.textContent = `Hearing… "${interim.trim().slice(0, 70)}${interim.trim().length > 70 ? '…' : ''}"`;
     }
