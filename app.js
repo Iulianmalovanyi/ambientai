@@ -347,21 +347,12 @@ async function lockToPreferredMic() {
   }
 }
 
-// If an audio device joins/leaves the OS (iPhone connects, AirPods unpair,
-// etc.) while we're listening, re-lock to whatever the best device now is.
-// This catches the common case: iPhone goes out of range mid-consultation,
-// macOS auto-switches the default to "no device", SpeechRecognition silently
-// dies. We re-bind to the Mac built-in mic and restart recognition.
-if (navigator.mediaDevices?.addEventListener) {
-  navigator.mediaDevices.addEventListener('devicechange', async () => {
-    if (!state.listening) return;
-    console.log('[mic] devicechange — re-locking preferred device');
-    try { state.recognition?.stop(); } catch (_) {}
-    await new Promise(r => setTimeout(r, 200));
-    await lockToPreferredMic();
-    try { state.recognition?.start(); } catch (_) {}
-  });
-}
+// (Earlier I added a devicechange listener that re-locked to a preferred mic
+// when audio devices joined/left. It conflicted with explicit user actions —
+// e.g. changing the default mic in System Settings fires devicechange, and
+// the listener would race with the user clicking "Open patient" to start a
+// new session, causing recognition.start() to throw "already started".
+// Removed. macOS's own default-mic selection is the source of truth.)
 
 // =====================================================================
 // Speech recognition
@@ -587,7 +578,7 @@ function renderAudioMeter() {
   }
 }
 
-async function startListening() {
+function startListening() {
   state.hasEverStarted = true;
   // Auto-show the transcript panel on first start so the user can verify
   // capture is working. They can hide it again if it gets in the way.
@@ -604,14 +595,6 @@ async function startListening() {
     return;
   }
   if (!state.recognition) return;
-  // Lock to the preferred (built-in) mic before starting SpeechRecognition,
-  // so iPhone Continuity / AirPods / Bluetooth devices don't get picked up.
-  try {
-    const locked = await lockToPreferredMic();
-    if (locked && locked.label) {
-      console.log('[mic] locked to', locked.label);
-    }
-  } catch (_) { /* non-fatal */ }
   try {
     state.recognition.start();
     setListening(true);
