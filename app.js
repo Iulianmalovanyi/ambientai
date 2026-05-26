@@ -279,6 +279,91 @@ function isFarewell(text) {
 }
 
 // =====================================================================
+// Microphone device selection.
+//
+// Problem this solves: on Macs paired with an iPhone, macOS Continuity
+// Camera auto-selects the iPhone as the default audio input. Chrome's
+// SpeechRecognition uses the OS default, so if the user's default is
+// the iPhone, transcription dies the moment the iPhone disconnects /
+// goes out of range. The app then shows "iPhone microphone is not
+// available" with no fallback.
+//
+// We can't programmatically set the OS default, but we CAN:
+//   1. Enumerate available input devices once we have permission.
+//   2. Pick the most local-looking one (built-in mic, not iPhone /
+//      AirPods / virtual cable).
+//   3. Open a `getUserMedia` stream with `{ deviceId: { exact: X } }`
+//      briefly. Chrome remembers that device choice per-origin and
+//      uses it as the implicit default for the next SpeechRecognition
+//      start within the same session.
+//   4. Re-run the lock whenever devices change (iPhone disconnect →
+//      fall back to the Mac built-in immediately).
+// =====================================================================
+const BUILTIN_PATTERNS = /\b(macbook|mac\s*book|built[\s-]?in|imac|mac\s*mini)\b/i;
+const EXTERNAL_PATTERNS = /\b(iphone|ipad|airpods|bluetooth|usb camera|continuity)\b/i;
+
+function scoreMicDevice(label) {
+  if (!label) return 0;
+  let score = 50;
+  if (BUILTIN_PATTERNS.test(label)) score += 100;
+  if (EXTERNAL_PATTERNS.test(label)) score -= 200;
+  if (/^default/i.test(label)) score += 5;
+  return score;
+}
+
+async function findPreferredMic() {
+  if (!navigator.mediaDevices?.enumerateDevices) return null;
+  try {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const inputs = devices.filter(d => d.kind === 'audioinput' && d.deviceId);
+    if (!inputs.length) return null;
+    inputs.sort((a, b) => scoreMicDevice(b.label) - scoreMicDevice(a.label));
+    return inputs[0];
+  } catch (e) {
+    console.warn('[mic] enumerateDevices failed', e);
+    return null;
+  }
+}
+
+async function lockToPreferredMic() {
+  const preferred = await findPreferredMic();
+  if (!preferred || !preferred.deviceId) return null;
+  // Decline to lock if the labels are blank (no permission yet) — opening
+  // and immediately closing a stream still triggers Chrome to grant the
+  // permission, after which we get real labels.
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: { deviceId: { exact: preferred.deviceId } }
+    });
+    // Hold for a couple of ticks so Chrome's audio backend latches the
+    // chosen device for the page's origin, then release it so it doesn't
+    // compete with SpeechRecognition's own stream.
+    await new Promise(resolve => setTimeout(resolve, 100));
+    stream.getTracks().forEach(t => t.stop());
+    return preferred;
+  } catch (e) {
+    console.warn('[mic] could not lock to preferred device', preferred.label, e);
+    return null;
+  }
+}
+
+// If an audio device joins/leaves the OS (iPhone connects, AirPods unpair,
+// etc.) while we're listening, re-lock to whatever the best device now is.
+// This catches the common case: iPhone goes out of range mid-consultation,
+// macOS auto-switches the default to "no device", SpeechRecognition silently
+// dies. We re-bind to the Mac built-in mic and restart recognition.
+if (navigator.mediaDevices?.addEventListener) {
+  navigator.mediaDevices.addEventListener('devicechange', async () => {
+    if (!state.listening) return;
+    console.log('[mic] devicechange — re-locking preferred device');
+    try { state.recognition?.stop(); } catch (_) {}
+    await new Promise(r => setTimeout(r, 200));
+    await lockToPreferredMic();
+    try { state.recognition?.start(); } catch (_) {}
+  });
+}
+
+// =====================================================================
 // Speech recognition
 // =====================================================================
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -502,7 +587,7 @@ function renderAudioMeter() {
   }
 }
 
-function startListening() {
+async function startListening() {
   state.hasEverStarted = true;
   // Auto-show the transcript panel on first start so the user can verify
   // capture is working. They can hide it again if it gets in the way.
@@ -519,6 +604,14 @@ function startListening() {
     return;
   }
   if (!state.recognition) return;
+  // Lock to the preferred (built-in) mic before starting SpeechRecognition,
+  // so iPhone Continuity / AirPods / Bluetooth devices don't get picked up.
+  try {
+    const locked = await lockToPreferredMic();
+    if (locked && locked.label) {
+      console.log('[mic] locked to', locked.label);
+    }
+  } catch (_) { /* non-fatal */ }
   try {
     state.recognition.start();
     setListening(true);
