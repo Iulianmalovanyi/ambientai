@@ -595,14 +595,39 @@ function startListening() {
     return;
   }
   if (!state.recognition) return;
-  try {
-    state.recognition.start();
-    setListening(true);
-    sttStatus.textContent = 'Listening… speak into the microphone.';
-  } catch (err) {
-    console.warn(err);
-    sttStatus.textContent = 'Could not start recognition: ' + err.message;
+
+  // Defensive stop+restart: SpeechRecognition.stop() is async. If a previous
+  // session was still tearing down (or auto-restarting from onend) when the
+  // user clicks Start / "Open patient" again, start() throws "InvalidState:
+  // recognition has already started". Calling stop() first and waiting a
+  // tick guarantees a clean start. Up to 4 retries with backoff cover the
+  // case where the prior session was particularly slow to finalise.
+  try { state.recognition.stop(); } catch (_) {}
+
+  let attempt = 0;
+  const maxAttempts = 4;
+  function tryStart() {
+    attempt++;
+    try {
+      state.recognition.start();
+      setListening(true);
+      sttStatus.textContent = 'Listening… speak into the microphone.';
+    } catch (err) {
+      const stillRunning = /already started|invalid state/i.test(err.message || '');
+      if (stillRunning && attempt < maxAttempts) {
+        // Recognition is still in 'started' state from a previous call.
+        // Try again after a slightly longer wait each attempt.
+        setTimeout(tryStart, 250 * attempt);
+        sttStatus.textContent = `Restarting recognition… (attempt ${attempt + 1})`;
+      } else {
+        console.warn('startListening failed', err);
+        sttStatus.textContent = 'Could not start recognition: ' + err.message;
+      }
+    }
   }
+  // First attempt after a small delay so the defensive stop() above has a
+  // chance to fire onend before we retry.
+  setTimeout(tryStart, 200);
 }
 function pauseListening() {
   setListening(false);
